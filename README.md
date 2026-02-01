@@ -340,16 +340,26 @@ Join our Discord for help, discussion, and sharing strategies:
 
 ## Disclaimer
 
-**This software is for educational purposes only.**
+**⚠️ IMPORTANT: READ BEFORE USING**
 
-- Trading involves substantial risk of loss
-- Past performance does not guarantee future results
-- Always start with paper trading
-- This is not financial advice
-- The authors are not responsible for any trading losses
+This software is provided for **educational and informational purposes only**. Nothing in this repository constitutes financial, investment, legal, or tax advice.
 
-Use at your own risk.
+**By using this software, you acknowledge and agree that:**
+
+- All trading and investment decisions are made **at your own risk**
+- Markets are volatile and **you can lose some or all of your capital**
+- No guarantees of performance, profits, or outcomes are made
+- The authors, contributors, and maintainers are **not responsible** for any financial losses, damages, or other consequences resulting from the use of this software
+- You are **solely responsible** for your own trades and investment decisions
+- This software may contain bugs, errors, or behave unexpectedly
+- Past performance (real or simulated) does not guarantee future results
+
+**If you do not fully understand the risks involved in trading or investing, you should not use this software.**
+
+No member, contributor, or operator of this project shall be held liable for losses of any kind. This software is provided "as is" without warranty of any kind, express or implied.
+
+**Always start with paper trading (`ALPACA_PAPER=true`) and never risk money you cannot afford to lose.**
 
 ## License
 
-MIT License - Free for personal and commercial use.
+MIT License - Free for personal and commercial use. See [LICENSE](LICENSE) for full terms.

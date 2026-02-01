@@ -6,7 +6,8 @@ interface SetupWizardProps {
 }
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(0)
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
@@ -55,6 +56,65 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   return (
     <div className="min-h-screen bg-hud-bg flex items-center justify-center p-6">
       <Panel title="MAHORAGA SETUP" className="w-full max-w-xl">
+        {step === 0 && (
+          <div className="space-y-6">
+            <div className="text-center py-2">
+              <h2 className="text-xl font-light text-hud-warning mb-2">Risk Disclaimer</h2>
+              <p className="text-hud-text-dim text-xs">
+                Please read carefully before proceeding
+              </p>
+            </div>
+
+            <div className="bg-hud-bg p-4 rounded text-xs text-hud-text-dim space-y-3 max-h-64 overflow-y-auto">
+              <p>
+                This software is provided for <strong className="text-hud-text">educational and informational purposes only</strong>. 
+                Nothing in this software constitutes financial, investment, legal, or tax advice.
+              </p>
+              <p>
+                <strong className="text-hud-text">By using this software, you acknowledge and agree that:</strong>
+              </p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>All trading and investment decisions are made <strong className="text-hud-warning">at your own risk</strong></li>
+                <li>Markets are volatile and <strong className="text-hud-error">you can lose some or all of your capital</strong></li>
+                <li>No guarantees of performance, profits, or outcomes are made</li>
+                <li>The authors, contributors, and maintainers are not responsible for any financial losses</li>
+                <li>You are solely responsible for your own trades and investment decisions</li>
+                <li>This software may contain bugs, errors, or behave unexpectedly</li>
+                <li>Past performance does not guarantee future results</li>
+              </ul>
+              <p>
+                <strong className="text-hud-error">If you do not fully understand the risks involved in trading or investing, you should not use this software.</strong>
+              </p>
+              <p>
+                No member, contributor, or operator of this project shall be held liable for losses of any kind.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="acceptDisclaimer"
+                checked={disclaimerAccepted}
+                onChange={e => setDisclaimerAccepted(e.target.checked)}
+                className="accent-hud-primary mt-1"
+              />
+              <label htmlFor="acceptDisclaimer" className="text-xs text-hud-text">
+                I have read and understand the risks. I accept full responsibility for any losses that may occur from using this software.
+              </label>
+            </div>
+
+            <div className="pt-4 border-t border-hud-line">
+              <button 
+                className="hud-button w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setStep(1)}
+                disabled={!disclaimerAccepted}
+              >
+                I Understand, Continue
+              </button>
+            </div>
+          </div>
+        )}
+
         {step === 1 && (
           <div className="space-y-6">
             <div className="text-center py-4">
@@ -75,7 +135,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-hud-success">3.</span>
-                <span>GPT-5.2 makes final trading decisions at market open</span>
+                <span>LLM makes final trading decisions at market open</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-hud-success">4.</span>
@@ -203,7 +263,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               Please restart the agent to apply the new settings:
             </p>
             <code className="block bg-hud-bg p-3 text-hud-primary text-sm rounded">
-              node agent-v2.mjs
+              node agent-v1.mjs
             </code>
             <button 
               className="hud-button mt-4"
