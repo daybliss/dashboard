@@ -34,9 +34,14 @@ function getAgentColor(agent: string): string {
     'StockTwits': 'text-hud-success',
     'SignalResearch': 'text-hud-cyan',
     'PositionResearch': 'text-hud-purple',
+    'Crypto': 'text-hud-warning',
     'System': 'text-hud-text-dim',
   }
   return colors[agent] || 'text-hud-text'
+}
+
+function isCryptoSymbol(symbol: string, cryptoSymbols: string[] = []): boolean {
+  return cryptoSymbols.includes(symbol) || symbol.includes('/USD') || symbol.includes('BTC') || symbol.includes('ETH') || symbol.includes('SOL')
 }
 
 function getVerdictColor(verdict: string): string {
@@ -396,7 +401,12 @@ export default function App() {
                                   />
                                 }
                               >
-                                <span className="cursor-help border-b border-dotted border-hud-text-dim">{pos.symbol}</span>
+                                <span className="cursor-help border-b border-dotted border-hud-text-dim">
+                                  {isCryptoSymbol(pos.symbol, config?.crypto_symbols) && (
+                                    <span className="text-hud-warning mr-1">₿</span>
+                                  )}
+                                  {pos.symbol}
+                                </span>
                               </Tooltip>
                             </td>
                             <td className="hud-value-sm text-right py-2 px-2 hidden sm:table-cell">{pos.qty}</td>
@@ -530,6 +540,8 @@ export default function App() {
                             ...(sig.bearish !== undefined ? [{ label: 'Bearish', value: sig.bearish, color: 'text-hud-error' }] : []),
                             ...(sig.score !== undefined ? [{ label: 'Score', value: sig.score }] : []),
                             ...(sig.upvotes !== undefined ? [{ label: 'Upvotes', value: sig.upvotes }] : []),
+                            ...(sig.momentum !== undefined ? [{ label: 'Momentum', value: `${sig.momentum >= 0 ? '+' : ''}${sig.momentum.toFixed(2)}%` }] : []),
+                            ...(sig.price !== undefined ? [{ label: 'Price', value: formatCurrency(sig.price) }] : []),
                           ]}
                           description={sig.reason}
                         />
@@ -539,14 +551,24 @@ export default function App() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.02 }}
-                        className="flex items-center justify-between py-1 px-2 border-b border-hud-line/10 hover:bg-hud-line/10 cursor-help"
+                        className={clsx(
+                          "flex items-center justify-between py-1 px-2 border-b border-hud-line/10 hover:bg-hud-line/10 cursor-help",
+                          sig.isCrypto && "bg-hud-warning/5"
+                        )}
                       >
                         <div className="flex items-center gap-2">
+                          {sig.isCrypto && <span className="text-hud-warning text-xs">₿</span>}
                           <span className="hud-value-sm">{sig.symbol}</span>
-                          <span className="hud-label">{sig.source.toUpperCase()}</span>
+                          <span className={clsx('hud-label', sig.isCrypto ? 'text-hud-warning' : '')}>{sig.source.toUpperCase()}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="hud-label hidden sm:inline">VOL {sig.volume}</span>
+                          {sig.isCrypto && sig.momentum !== undefined ? (
+                            <span className={clsx('hud-label hidden sm:inline', sig.momentum >= 0 ? 'text-hud-success' : 'text-hud-error')}>
+                              {sig.momentum >= 0 ? '+' : ''}{sig.momentum.toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="hud-label hidden sm:inline">VOL {sig.volume}</span>
+                          )}
                           <span className={clsx('hud-value-sm', getSentimentColor(sig.sentiment))}>
                             {(sig.sentiment * 100).toFixed(0)}%
                           </span>
@@ -700,6 +722,15 @@ export default function App() {
                     <MetricInline label="OPT Δ" value={config.options_target_delta?.toFixed(2) || '0.35'} />
                     <MetricInline label="OPT DTE" value={`${config.options_min_dte || 7}-${config.options_max_dte || 45}`} />
                   </>
+                )}
+                <span className="hidden lg:inline text-hud-line">|</span>
+                <MetricInline 
+                  label="CRYPTO" 
+                  value={config.crypto_enabled ? '24/7' : 'OFF'} 
+                  valueClassName={config.crypto_enabled ? 'text-hud-warning' : 'text-hud-text-dim'}
+                />
+                {config.crypto_enabled && (
+                  <MetricInline label="SYMBOLS" value={(config.crypto_symbols || ['BTC', 'ETH', 'SOL']).map(s => s.split('/')[0]).join('/')} />
                 )}
               </>
             )}

@@ -313,6 +313,77 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
             </div>
           </div>
 
+          {/* Crypto Trading */}
+          <div>
+            <h3 className="hud-label mb-3 text-hud-cyan">Crypto Trading (24/7)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="hud-input w-4 h-4"
+                    checked={localConfig.crypto_enabled || false}
+                    onChange={e => handleChange('crypto_enabled', e.target.checked ? 1 : 0)}
+                  />
+                  <span className="hud-label">Enable Crypto Trading</span>
+                </label>
+                <p className="text-[9px] text-hud-text-dim mt-1">Trade crypto 24/7 based on momentum. Alpaca supports 20+ coins.</p>
+              </div>
+              <div>
+                <label className="hud-label block mb-1">Symbols (comma-separated)</label>
+                <input
+                  type="text"
+                  className="hud-input w-full"
+                  value={(localConfig.crypto_symbols || ['BTC/USD', 'ETH/USD', 'SOL/USD']).join(', ')}
+                  onChange={e => handleChange('crypto_symbols', e.target.value.split(',').map(s => s.trim()) as unknown as string)}
+                  disabled={!localConfig.crypto_enabled}
+                  placeholder="BTC/USD, ETH/USD, SOL/USD, DOGE/USD, AVAX/USD..."
+                />
+              </div>
+              <div>
+                <label className="hud-label block mb-1">Momentum Threshold (%)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  className="hud-input w-full"
+                  value={localConfig.crypto_momentum_threshold || 2.0}
+                  onChange={e => handleChange('crypto_momentum_threshold', Number(e.target.value))}
+                  disabled={!localConfig.crypto_enabled}
+                />
+              </div>
+              <div>
+                <label className="hud-label block mb-1">Max Position ($)</label>
+                <input
+                  type="number"
+                  className="hud-input w-full"
+                  value={localConfig.crypto_max_position_value || 1000}
+                  onChange={e => handleChange('crypto_max_position_value', Number(e.target.value))}
+                  disabled={!localConfig.crypto_enabled}
+                />
+              </div>
+              <div>
+                <label className="hud-label block mb-1">Take Profit (%)</label>
+                <input
+                  type="number"
+                  className="hud-input w-full"
+                  value={localConfig.crypto_take_profit_pct || 10}
+                  onChange={e => handleChange('crypto_take_profit_pct', Number(e.target.value))}
+                  disabled={!localConfig.crypto_enabled}
+                />
+              </div>
+              <div>
+                <label className="hud-label block mb-1">Stop Loss (%)</label>
+                <input
+                  type="number"
+                  className="hud-input w-full"
+                  value={localConfig.crypto_stop_loss_pct || 5}
+                  onChange={e => handleChange('crypto_stop_loss_pct', Number(e.target.value))}
+                  disabled={!localConfig.crypto_enabled}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Stale Position Management */}
           <div>
             <h3 className="hud-label mb-3 text-hud-warning">Stale Position Management</h3>

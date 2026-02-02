@@ -30,6 +30,9 @@ export interface Signal {
   bearish?: number
   score?: number
   upvotes?: number
+  isCrypto?: boolean
+  momentum?: number
+  price?: number
 }
 
 export interface LogEntry {
@@ -87,6 +90,14 @@ export interface Config {
   options_stop_loss_pct?: number
   options_take_profit_pct?: number
   options_max_positions?: number
+  
+  // Crypto trading config (24/7)
+  crypto_enabled?: boolean
+  crypto_symbols?: string[]
+  crypto_momentum_threshold?: number
+  crypto_max_position_value?: number
+  crypto_take_profit_pct?: number
+  crypto_stop_loss_pct?: number
 }
 
 export interface SignalResearch {

@@ -80,6 +80,14 @@ const DEFAULT_CONFIG = {
   
   // Account config
   starting_equity: 100000,             // Starting equity for P&L calculation
+  
+  // Crypto trading (24/7 markets)
+  crypto_enabled: false,               // Enable crypto trading
+  crypto_symbols: ["BTC/USD", "ETH/USD", "SOL/USD"],  // Cryptos to monitor
+  crypto_momentum_threshold: 2.0,      // Min % price change to trigger signal
+  crypto_max_position_value: 1000,     // Max $ per crypto position
+  crypto_take_profit_pct: 10,          // Take profit for crypto
+  crypto_stop_loss_pct: 5,             // Stop loss for crypto
 };
 
 function loadConfig() {
@@ -245,6 +253,97 @@ class StockTwitsAgent {
 }
 
 // ============================================================================
+// Crypto Agent - Momentum-based crypto trading (24/7)
+// ============================================================================
+
+class CryptoAgent {
+  constructor(logger, config, mcpClient) {
+    this.logger = logger;
+    this.config = config;
+    this.mcp = mcpClient;
+    this.name = "Crypto";
+    this.priceCache = new Map(); // Track prices for momentum
+  }
+
+  async callTool(name, args = {}) {
+    const result = await this.mcp.callTool({ name, arguments: args });
+    return JSON.parse(result.content[0].text);
+  }
+
+  async getQuote(symbol) {
+    try {
+      const result = await this.callTool("market-quote", { symbol });
+      if (result.ok) {
+        return result.data;
+      }
+      return null;
+    } catch (err) {
+      this.logger.log(this.name, "quote_error", { symbol, error: err.message });
+      return null;
+    }
+  }
+
+  async gatherSignals() {
+    if (!this.config.crypto_enabled) return [];
+    
+    const signals = [];
+    const symbols = this.config.crypto_symbols || ["BTC/USD", "ETH/USD"];
+    
+    for (const symbol of symbols) {
+      const quote = await this.getQuote(symbol);
+      if (!quote) continue;
+      
+      const price = quote.price || quote.last || quote.close;
+      const prevClose = quote.prev_close || quote.previous_close;
+      
+      if (!price) continue;
+      
+      // Calculate momentum (% change)
+      let momentum = 0;
+      if (prevClose && prevClose > 0) {
+        momentum = ((price - prevClose) / prevClose) * 100;
+      }
+      
+      // Store for tracking
+      const lastPrice = this.priceCache.get(symbol);
+      this.priceCache.set(symbol, { price, timestamp: Date.now() });
+      
+      // Calculate short-term momentum if we have previous data
+      let shortTermMomentum = 0;
+      if (lastPrice && lastPrice.price > 0) {
+        shortTermMomentum = ((price - lastPrice.price) / lastPrice.price) * 100;
+      }
+      
+      // Generate signal based on momentum
+      const threshold = this.config.crypto_momentum_threshold || 2.0;
+      
+      if (Math.abs(momentum) >= threshold || Math.abs(shortTermMomentum) >= threshold * 0.5) {
+        const isBullish = momentum > 0 || shortTermMomentum > 0;
+        const sentiment = isBullish ? Math.min(momentum / 10, 1) : Math.max(momentum / 10, -1);
+        
+        signals.push({
+          symbol,
+          source: "crypto_momentum",
+          sentiment: Math.abs(sentiment),
+          volume: 100, // Crypto always has volume
+          bullish: isBullish ? 1 : 0,
+          bearish: isBullish ? 0 : 1,
+          reason: `Crypto momentum: ${momentum >= 0 ? '+' : ''}${momentum.toFixed(2)}% (24h), ${shortTermMomentum >= 0 ? '+' : ''}${shortTermMomentum.toFixed(2)}% (recent)`,
+          isCrypto: true,
+          momentum,
+          price,
+        });
+      }
+      
+      await sleep(200);
+    }
+    
+    this.logger.log(this.name, "gathered_signals", { count: signals.length });
+    return signals;
+  }
+}
+
+// ============================================================================
 // Trading Executor
 // ============================================================================
 
@@ -262,7 +361,7 @@ class TradingExecutor {
     return JSON.parse(result.content[0].text);
   }
 
-  async executeBuy(symbol, confidence, reasonText = "") {
+  async executeBuy(symbol, confidence, reasonText = "", isCrypto = false) {
     // Cooldown check (5 min)
     const lastTrade = this.lastTrades.get(symbol);
     if (lastTrade && Date.now() - lastTrade < 300_000) {
@@ -273,26 +372,35 @@ class TradingExecutor {
     const account = await this.callTool("accounts-get");
     if (!account.ok) return null;
 
-    // Calculate position size
+    // Calculate position size - use crypto-specific limits if applicable
     const sizePct = this.config.position_size_pct_of_cash;
+    const maxPositionValue = isCrypto 
+      ? this.config.crypto_max_position_value 
+      : this.config.max_position_value;
+    
     const positionSize = Math.min(
       account.data.cash * (sizePct / 100) * confidence,
-      this.config.max_position_value
+      maxPositionValue
     );
 
-    if (positionSize < 100) {
-      this.logger.log(this.name, "skipped_size", { symbol, size: positionSize });
+    // Lower minimum for crypto (can buy fractional)
+    const minSize = isCrypto ? 10 : 100;
+    if (positionSize < minSize) {
+      this.logger.log(this.name, "skipped_size", { symbol, size: positionSize, isCrypto });
       return null;
     }
 
-    this.logger.log(this.name, "preview_buy", { symbol, size: positionSize.toFixed(2) });
+    this.logger.log(this.name, "preview_buy", { symbol, size: positionSize.toFixed(2), isCrypto });
+
+    // Crypto uses GTC (good-til-canceled) since it trades 24/7
+    const timeInForce = isCrypto ? "gtc" : "day";
 
     const preview = await this.callTool("orders-preview", {
       symbol,
       side: "buy",
       notional: Math.round(positionSize * 100) / 100,
       order_type: "market",
-      time_in_force: "day",
+      time_in_force: timeInForce,
     });
 
     if (!preview.ok) {
@@ -317,6 +425,7 @@ class TradingExecutor {
         status: submit.data.order.status,
         size: positionSize.toFixed(2),
         reason: reasonText,
+        isCrypto,
       });
       return submit.data.order;
     } else {
@@ -352,6 +461,7 @@ class SimpleOrchestrator {
     this.lastAnalystRun = 0;
     
     this.stocktwits = new StockTwitsAgent(this.logger);
+    this.crypto = null; // Initialized after MCP connection
     this.executor = null;
     this.mcp = null;
   }
@@ -365,6 +475,7 @@ class SimpleOrchestrator {
       this.mcp = new Client({ name: "mahoraga-v1", version: "1.0" }, { capabilities: {} });
       await this.mcp.connect(transport);
       this.executor = new TradingExecutor(this.mcp, this.logger, this.config);
+      this.crypto = new CryptoAgent(this.logger, this.config, this.mcp);
       this.logger.log("System", "connected", { url });
       return true;
     } catch (err) {
@@ -391,14 +502,17 @@ class SimpleOrchestrator {
     this.logger.log("System", "gathering_data");
     
     const stocktwitsSignals = await this.stocktwits.gatherSignals();
-    this.signalCache = stocktwitsSignals;
+    const cryptoSignals = await this.crypto.gatherSignals();
+    
+    this.signalCache = [...stocktwitsSignals, ...cryptoSignals];
     
     this.logger.log("System", "data_gathered", {
       stocktwits: stocktwitsSignals.length,
-      total: stocktwitsSignals.length,
+      crypto: cryptoSignals.length,
+      total: this.signalCache.length,
     });
 
-    return stocktwitsSignals;
+    return this.signalCache;
   }
 
   // ==========================================================================
@@ -418,7 +532,7 @@ class SimpleOrchestrator {
   // ==========================================================================
   // ==========================================================================
 
-  async runTradingLogic() {
+  async runTradingLogic(cryptoOnly = false) {
     const { account, positions, clock } = await this.getAccountState();
     
     if (!account) {
@@ -426,29 +540,52 @@ class SimpleOrchestrator {
       return;
     }
 
-    if (!clock?.is_open) {
+    // For stock trading, check market hours. Crypto trades 24/7.
+    const marketOpen = clock?.is_open;
+    
+    if (!cryptoOnly && !marketOpen) {
       this.logger.log("System", "market_closed");
+      // Still process crypto if enabled
+      if (this.config.crypto_enabled) {
+        await this.runTradingLogic(true);
+      }
       return;
     }
 
     const heldSymbols = new Set(positions.map(p => p.symbol));
+    
+    // Separate stock and crypto positions
+    const cryptoSymbols = new Set(this.config.crypto_symbols || []);
+    const stockPositions = positions.filter(p => !cryptoSymbols.has(p.symbol));
+    const cryptoPositions = positions.filter(p => cryptoSymbols.has(p.symbol));
 
     // ========================================================================
     // STEP 1: Check existing positions for exit signals
     // ========================================================================
     for (const pos of positions) {
+      const isCrypto = cryptoSymbols.has(pos.symbol);
+      
+      // Skip non-crypto if we're in crypto-only mode
+      if (cryptoOnly && !isCrypto) continue;
+      // Skip crypto if we're in stock mode and market is open
+      if (!cryptoOnly && isCrypto) continue;
+      
       const plPct = (pos.unrealized_pl / (pos.market_value - pos.unrealized_pl)) * 100;
       
+      // Use crypto-specific or stock-specific thresholds
+      const takeProfit = isCrypto ? this.config.crypto_take_profit_pct : this.config.take_profit_pct;
+      const stopLoss = isCrypto ? this.config.crypto_stop_loss_pct : this.config.stop_loss_pct;
+      
       // Take profit
-      if (plPct >= this.config.take_profit_pct) {
-        this.logger.log("System", "take_profit_triggered", { symbol: pos.symbol, pnl: plPct.toFixed(2) });
+      if (plPct >= takeProfit) {
+        this.logger.log("System", "take_profit_triggered", { symbol: pos.symbol, pnl: plPct.toFixed(2), isCrypto });
         await this.executor.executeSell(pos.symbol, `Take profit at +${plPct.toFixed(1)}%`);
         continue;
       }
       
       // Stop loss
-      if (plPct <= -this.config.stop_loss_pct) {
-        this.logger.log("System", "stop_loss_triggered", { symbol: pos.symbol, pnl: plPct.toFixed(2) });
+      if (plPct <= -stopLoss) {
+        this.logger.log("System", "stop_loss_triggered", { symbol: pos.symbol, pnl: plPct.toFixed(2), isCrypto });
         await this.executor.executeSell(pos.symbol, `Stop loss at ${plPct.toFixed(1)}%`);
         continue;
       }
@@ -457,39 +594,79 @@ class SimpleOrchestrator {
     // ========================================================================
     // STEP 2: Look for new buy opportunities
     // ========================================================================
-    if (positions.length >= this.config.max_positions) {
-      this.logger.log("System", "max_positions_reached", { count: positions.length });
-      return;
+    
+    // Separate signals by type
+    const stockSignals = this.signalCache.filter(s => !s.isCrypto);
+    const cryptoSignals = this.signalCache.filter(s => s.isCrypto);
+    
+    // Process stock signals (only if market open and not crypto-only mode)
+    if (!cryptoOnly && marketOpen && stockPositions.length < this.config.max_positions) {
+      const stockCandidates = stockSignals
+        .filter(s => !heldSymbols.has(s.symbol))
+        .filter(s => s.sentiment >= this.config.min_sentiment_score)
+        .filter(s => s.volume >= this.config.min_volume)
+        .sort((a, b) => b.sentiment - a.sentiment);
+
+      this.logger.log("System", "stock_buy_candidates", { count: stockCandidates.length });
+
+      for (const signal of stockCandidates.slice(0, 3)) {
+        if (stockPositions.length >= this.config.max_positions) break;
+        
+        const confidence = Math.min(1, Math.max(0.5, signal.sentiment + 0.3));
+        
+        this.logger.log("System", "considering_buy", { 
+          symbol: signal.symbol, 
+          sentiment: signal.sentiment.toFixed(2),
+          volume: signal.volume,
+          type: "stock",
+        });
+        
+        const result = await this.executor.executeBuy(signal.symbol, confidence, signal.reason);
+        
+        if (result) {
+          heldSymbols.add(signal.symbol);
+          break; // One buy per cycle
+        }
+      }
     }
+    
+    // Process crypto signals (24/7, separate position limit)
+    if (this.config.crypto_enabled) {
+      const maxCryptoPositions = Math.min(this.config.crypto_symbols?.length || 3, 3);
+      
+      if (cryptoPositions.length < maxCryptoPositions) {
+        const cryptoCandidates = cryptoSignals
+          .filter(s => !heldSymbols.has(s.symbol))
+          .filter(s => s.sentiment > 0) // Only bullish momentum
+          .sort((a, b) => b.momentum - a.momentum);
 
-    // Filter signals to find buy candidates
-    const buyCandidates = this.signalCache
-      .filter(s => !heldSymbols.has(s.symbol))
-      .filter(s => s.sentiment >= this.config.min_sentiment_score)
-      .filter(s => s.volume >= this.config.min_volume)
-      .sort((a, b) => b.sentiment - a.sentiment);
+        this.logger.log("System", "crypto_buy_candidates", { count: cryptoCandidates.length });
 
-    this.logger.log("System", "buy_candidates", { count: buyCandidates.length });
-
-    // Try to buy top candidates
-    for (const signal of buyCandidates.slice(0, 3)) {
-      if (positions.length >= this.config.max_positions) break;
-      
-      // Use sentiment as confidence (0-1 scale)
-      const confidence = Math.min(1, Math.max(0.5, signal.sentiment + 0.3));
-      
-      this.logger.log("System", "considering_buy", { 
-        symbol: signal.symbol, 
-        sentiment: signal.sentiment.toFixed(2),
-        volume: signal.volume,
-      });
-      
-      const result = await this.executor.executeBuy(signal.symbol, confidence, signal.reason);
-      
-      if (result) {
-        heldSymbols.add(signal.symbol);
-        // Don't spam - one buy per cycle
-        break;
+        for (const signal of cryptoCandidates.slice(0, 2)) {
+          if (cryptoPositions.length >= maxCryptoPositions) break;
+          
+          // Crypto uses momentum as confidence
+          const confidence = Math.min(1, Math.max(0.5, signal.sentiment));
+          
+          this.logger.log("System", "considering_buy", { 
+            symbol: signal.symbol, 
+            momentum: signal.momentum?.toFixed(2),
+            type: "crypto",
+          });
+          
+          const result = await this.executor.executeBuy(
+            signal.symbol, 
+            confidence, 
+            signal.reason,
+            true // isCrypto flag
+          );
+          
+          if (result) {
+            heldSymbols.add(signal.symbol);
+            cryptoPositions.push({ symbol: signal.symbol }); // Track locally
+            break; // One crypto buy per cycle
+          }
+        }
       }
     }
 
@@ -539,7 +716,12 @@ class SimpleOrchestrator {
 
     // Schedule recurring runs
     console.log(`Data gathering: every ${this.config.data_poll_interval_ms / 1000}s`);
-    console.log(`Trading logic: every ${this.config.analyst_interval_ms / 1000}s (market hours only)\n`);
+    console.log(`Trading logic: every ${this.config.analyst_interval_ms / 1000}s`);
+    if (this.config.crypto_enabled) {
+      console.log(`Crypto trading: ENABLED (24/7)`);
+      console.log(`Crypto symbols: ${this.config.crypto_symbols?.join(", ")}`);
+    }
+    console.log();
 
     // Data gatherers (runs 24/7)
     setInterval(async () => {
@@ -550,13 +732,9 @@ class SimpleOrchestrator {
       }
     }, this.config.data_poll_interval_ms);
 
-    // Trading logic (only during market hours)
+    // Trading logic - handles both stocks (market hours) and crypto (24/7)
     setInterval(async () => {
       try {
-        const { clock } = await this.getAccountState();
-        if (!clock?.is_open) {
-          return;
-        }
         await this.runTradingLogic();
       } catch (err) {
         this.logger.log("System", "error", { phase: "trading", error: err.message });
