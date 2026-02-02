@@ -13,8 +13,10 @@ export interface Env {
   GOOGLE_GENERATIVE_AI_API_KEY?: string;
   XAI_API_KEY?: string;
   DEEPSEEK_API_KEY?: string;
-  AI_GATEWAY_API_KEY?: string;
-  LLM_PROVIDER?: "openai-raw" | "ai-sdk" | "vercel-gateway";
+  CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID?: string;
+  CLOUDFLARE_AI_GATEWAY_ID?: string;
+  CLOUDFLARE_AI_GATEWAY_TOKEN?: string;
+  LLM_PROVIDER?: "openai-raw" | "ai-sdk" | "cloudflare-gateway";
   LLM_MODEL?: string;
   TWITTER_BEARER_TOKEN?: string;
   DISCORD_WEBHOOK_URL?: string;

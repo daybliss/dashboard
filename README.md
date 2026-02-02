@@ -14,7 +14,7 @@ MAHORAGA monitors social sentiment from StockTwits and Reddit, uses AI (OpenAI, 
 
 - **24/7 Operation** — Runs on Cloudflare Workers, no local machine required
 - **Multi-Source Signals** — StockTwits, Reddit (4 subreddits), Twitter confirmation
-- **Multi-Provider LLM** — OpenAI, Anthropic, Google, xAI, DeepSeek via AI SDK or Vercel Gateway
+- **Multi-Provider LLM** — OpenAI, Anthropic, Google, xAI, DeepSeek via AI SDK or Cloudflare AI Gateway
 - **Crypto Trading** — Trade BTC, ETH, SOL around the clock
 - **Options Support** — High-conviction options plays
 - **Staleness Detection** — Auto-exit positions that lose momentum
@@ -27,7 +27,7 @@ MAHORAGA monitors social sentiment from StockTwits and Reddit, uses AI (OpenAI, 
 - Node.js 18+
 - Cloudflare account (free tier works)
 - Alpaca account (free, paper trading supported)
-- LLM API key (OpenAI, Anthropic, Google, xAI, DeepSeek, or Vercel AI Gateway)
+- LLM API key (OpenAI, Anthropic, Google, xAI, DeepSeek) or Cloudflare AI Gateway credentials
 
 ## Quick Start
 
@@ -66,7 +66,7 @@ npx wrangler secret put ALPACA_API_SECRET
 npx wrangler secret put MAHORAGA_API_TOKEN
 
 # LLM Provider (choose one mode)
-npx wrangler secret put LLM_PROVIDER  # "openai-raw" (default), "ai-sdk", or "vercel-gateway"
+npx wrangler secret put LLM_PROVIDER  # "openai-raw" (default), "ai-sdk", or "cloudflare-gateway"
 npx wrangler secret put LLM_MODEL     # e.g. "gpt-4o-mini" or "anthropic/claude-sonnet-4"
 
 # LLM API Keys (based on provider mode)
@@ -75,7 +75,9 @@ npx wrangler secret put OPENAI_API_KEY         # For openai-raw or ai-sdk with O
 # npx wrangler secret put GOOGLE_GENERATIVE_AI_API_KEY  # For ai-sdk with Google
 # npx wrangler secret put XAI_API_KEY          # For ai-sdk with xAI/Grok
 # npx wrangler secret put DEEPSEEK_API_KEY     # For ai-sdk with DeepSeek
-# npx wrangler secret put AI_GATEWAY_API_KEY   # For vercel-gateway
+# npx wrangler secret put CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID  # For cloudflare-gateway
+# npx wrangler secret put CLOUDFLARE_AI_GATEWAY_ID          # For cloudflare-gateway
+# npx wrangler secret put CLOUDFLARE_AI_GATEWAY_TOKEN       # For cloudflare-gateway
 
 # Optional
 npx wrangler secret put ALPACA_PAPER         # "true" for paper trading (recommended)
@@ -177,7 +179,13 @@ MAHORAGA supports multiple LLM providers via three modes:
 |------|-------------|-------------------|
 | `openai-raw` | Direct OpenAI API (default) | `OPENAI_API_KEY` |
 | `ai-sdk` | Vercel AI SDK with 5 providers | One or more provider keys |
-| `vercel-gateway` | Unified Vercel AI Gateway | `AI_GATEWAY_API_KEY` |
+| `cloudflare-gateway` | Cloudflare AI Gateway (/compat) | `CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID`, `CLOUDFLARE_AI_GATEWAY_ID`, `CLOUDFLARE_AI_GATEWAY_TOKEN` |
+
+**Cloudflare AI Gateway Notes:**
+
+- This integration calls Cloudflare's OpenAI-compatible `/compat/chat/completions` endpoint and always sends `cf-aig-authorization`.
+- It is intended for BYOK/Unified Billing setups where upstream provider keys are configured in Cloudflare (so your worker does not send provider API keys).
+- Models use the `{provider}/{model}` format (e.g. `openai/gpt-5-mini`, `google-ai-studio/gemini-2.5-flash`, `anthropic/claude-sonnet-4-5`).
 
 **AI SDK Supported Providers:**
 

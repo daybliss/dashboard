@@ -207,12 +207,19 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
                 >
                   <option value="openai-raw">OpenAI Direct (default)</option>
                   <option value="ai-sdk">AI SDK (8 providers)</option>
-                  <option value="vercel-gateway">Vercel AI Gateway</option>
+                  <option value="cloudflare-gateway">Cloudflare AI Gateway</option>
+                  {localConfig.llm_provider &&
+                    !['openai-raw', 'ai-sdk', 'cloudflare-gateway'].includes(localConfig.llm_provider) && (
+                      <option value={localConfig.llm_provider}>Custom (backend configured)</option>
+                    )}
                 </select>
                 <p className="text-[9px] text-hud-text-dim mt-1">
                   {localConfig.llm_provider === 'ai-sdk' && 'Supports: OpenAI, Anthropic, Google, Mistral, xAI, Groq, DeepSeek, Cohere'}
-                  {localConfig.llm_provider === 'vercel-gateway' && 'Uses AI_GATEWAY_API_KEY for unified access.'}
                   {(!localConfig.llm_provider || localConfig.llm_provider === 'openai-raw') && 'Uses OPENAI_API_KEY directly.'}
+                  {localConfig.llm_provider &&
+                    !['openai-raw', 'ai-sdk', 'cloudflare-gateway'].includes(localConfig.llm_provider) &&
+                    'Provider is configured in the backend; selection is hidden in the dashboard.'}
+                  {localConfig.llm_provider === 'cloudflare-gateway' && 'Uses CLOUDFLARE_AI_GATEWAY_* env vars via Cloudflare AI Gateway /compat.'}
                 </p>
               </div>
             </div>
@@ -248,31 +255,27 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
                       </optgroup>
                     </>
                   )}
-                  {localConfig.llm_provider === 'vercel-gateway' && (
+                  {localConfig.llm_provider === 'cloudflare-gateway' && (
                     <>
                       <optgroup label="OpenAI">
                         <option value="openai/gpt-4o-mini">gpt-4o-mini</option>
                         <option value="openai/gpt-5-mini">gpt-5-mini</option>
                       </optgroup>
                       <optgroup label="Anthropic">
-                        <option value="anthropic/claude-haiku-4.5">claude-haiku-4.5</option>
+                        <option value="anthropic/claude-haiku-4-5">claude-haiku-4.5</option>
                       </optgroup>
-                      <optgroup label="Google">
-                        <option value="google/gemini-3-flash">gemini-3-flash</option>
-                        <option value="google/gemini-2.5-flash">gemini-2.5-flash</option>
-                        <option value="google/gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+                      <optgroup label="Google AI Studio">
+                        <option value="google-ai-studio/gemini-2.5-flash">gemini-2.5-flash</option>
                       </optgroup>
                       <optgroup label="DeepSeek">
-                        <option value="deepseek/deepseek-v3.2">deepseek-v3.2</option>
-                      </optgroup>
-                      <optgroup label="MiniMax">
-                        <option value="minimax/minimax-m2.1">minimax-m2.1</option>
-                      </optgroup>
-                      <optgroup label="Alibaba">
-                        <option value="alibaba/qwen3-next-80b-a3b-instruct">qwen3-next-80b</option>
+                        <option value="deepseek/deepseek-chat">deepseek-chat</option>
                       </optgroup>
                     </>
                   )}
+                  {localConfig.llm_provider &&
+                    !['openai-raw', 'ai-sdk', 'cloudflare-gateway'].includes(localConfig.llm_provider) && (
+                      <option value={localConfig.llm_model}>{localConfig.llm_model}</option>
+                    )}
                 </select>
               </div>
               <div>
@@ -316,7 +319,7 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
                       </optgroup>
                     </>
                   )}
-                  {localConfig.llm_provider === 'vercel-gateway' && (
+                  {localConfig.llm_provider === 'cloudflare-gateway' && (
                     <>
                       <optgroup label="OpenAI">
                         <option value="openai/gpt-5.2">gpt-5.2 (best)</option>
@@ -324,26 +327,24 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
                         <option value="openai/gpt-4o">gpt-4o</option>
                       </optgroup>
                       <optgroup label="Anthropic">
-                        <option value="anthropic/claude-opus-4.5">claude-opus-4.5 (best)</option>
-                        <option value="anthropic/claude-sonnet-4.5">claude-sonnet-4.5</option>
+                        <option value="anthropic/claude-opus-4-5">claude-opus-4.5 (best)</option>
+                        <option value="anthropic/claude-sonnet-4-5">claude-sonnet-4.5</option>
                       </optgroup>
-                      <optgroup label="Google">
-                        <option value="google/gemini-2.5-pro">gemini-2.5-pro</option>
+                      <optgroup label="Google AI Studio">
+                        <option value="google-ai-studio/gemini-2.5-pro">gemini-2.5-pro</option>
                       </optgroup>
-                      <optgroup label="xAI">
-                        <option value="xai/grok-4.1-fast-reasoning">grok-4.1-fast-reasoning</option>
-                        <option value="xai/grok-code-fast-1">grok-code-fast-1</option>
-                      </optgroup>
-                      <optgroup label="Other">
-                        <option value="zai/glm-4.7">zai/glm-4.7</option>
-                        <option value="moonshotai/kimi-k2.5">moonshotai/kimi-k2.5</option>
-                      </optgroup>
-                      <optgroup label="Alibaba">
-                        <option value="alibaba/qwen-3-235b">qwen-3-235b</option>
-                        <option value="alibaba/qwen3-next-80b-a3b-instruct">qwen3-next-80b</option>
+                      <optgroup label="Grok">
+                        <option value="grok/grok-4.1-fast-reasoning">grok-4.1-fast-reasoning</option>
+                        <option value="grok/grok-code-fast-1">grok-code-fast-1</option>
                       </optgroup>
                     </>
                   )}
+                  {localConfig.llm_provider &&
+                    !['openai-raw', 'ai-sdk', 'cloudflare-gateway'].includes(localConfig.llm_provider) && (
+                      <option value={localConfig.llm_analyst_model || 'gpt-4o'}>
+                        {localConfig.llm_analyst_model || 'gpt-4o'}
+                      </option>
+                    )}
                 </select>
               </div>
             </div>

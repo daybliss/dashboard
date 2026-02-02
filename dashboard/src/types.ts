@@ -62,7 +62,7 @@ export interface Config {
   take_profit_pct: number
   stop_loss_pct: number
   position_size_pct_of_cash: number
-  llm_provider?: 'openai-raw' | 'ai-sdk' | 'vercel-gateway'
+  llm_provider?: 'openai-raw' | 'ai-sdk' | 'cloudflare-gateway'
   llm_model: string
   llm_analyst_model?: string
   llm_max_tokens: number

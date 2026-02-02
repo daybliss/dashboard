@@ -76,7 +76,7 @@ interface AgentConfig {
   stale_no_mentions_hours: number;   // [TUNE] Exit if no mentions for N hours
 
   // LLM configuration
-  llm_provider: 'openai-raw' | 'ai-sdk' | 'vercel-gateway'; // [TUNE] Provider: openai-raw, ai-sdk, vercel-gateway
+  llm_provider: 'openai-raw' | 'ai-sdk' | 'cloudflare-gateway'; // [TUNE] Provider: openai-raw, ai-sdk, cloudflare-gateway
   llm_model: string;               // [TUNE] Model for quick research (gpt-4o-mini)
   llm_analyst_model: string;       // [TUNE] Model for deep analysis (gpt-4o)
   llm_max_tokens: number;

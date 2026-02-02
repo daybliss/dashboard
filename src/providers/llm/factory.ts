@@ -2,9 +2,9 @@ import type { Env } from "../../env.d";
 import type { LLMProvider } from "../types";
 import { createOpenAIProvider } from "./openai";
 import { createAISDKProvider, SUPPORTED_PROVIDERS, type SupportedProvider } from "./ai-sdk";
-import { createVercelGatewayProvider } from "./vercel-gateway";
+import { createCloudflareGatewayProvider } from "./cloudflare-gateway";
 
-export type LLMProviderType = "openai-raw" | "ai-sdk" | "vercel-gateway";
+export type LLMProviderType = "openai-raw" | "ai-sdk" | "cloudflare-gateway";
 
 /**
  * Factory function to create LLM provider based on environment configuration.
@@ -12,7 +12,7 @@ export type LLMProviderType = "openai-raw" | "ai-sdk" | "vercel-gateway";
  * Provider selection (via LLM_PROVIDER env):
  * - "openai-raw": Direct OpenAI API calls (default, backward compatible)
  * - "ai-sdk": Vercel AI SDK with 5 providers (OpenAI, Anthropic, Google, xAI, DeepSeek)
- * - "vercel-gateway": Vercel AI Gateway for unified access
+ * - "cloudflare-gateway": Cloudflare AI Gateway (/compat) for unified access
  * 
  * @param env - Environment variables
  * @returns LLMProvider instance or null if no valid configuration
@@ -22,15 +22,28 @@ export function createLLMProvider(env: Env): LLMProvider | null {
   const model = env.LLM_MODEL ?? "gpt-4o-mini";
 
   switch (providerType) {
-    case "vercel-gateway":
-      if (!env.AI_GATEWAY_API_KEY) {
-        console.warn("LLM_PROVIDER=vercel-gateway requires AI_GATEWAY_API_KEY");
+    case "cloudflare-gateway": {
+      if (
+        !env.CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID ||
+        !env.CLOUDFLARE_AI_GATEWAY_ID ||
+        !env.CLOUDFLARE_AI_GATEWAY_TOKEN
+      ) {
+        console.warn(
+          "LLM_PROVIDER=cloudflare-gateway requires CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID, CLOUDFLARE_AI_GATEWAY_ID, and CLOUDFLARE_AI_GATEWAY_TOKEN"
+        );
         return null;
       }
-      return createVercelGatewayProvider({
-        apiKey: env.AI_GATEWAY_API_KEY,
-        model,
+
+      // Cloudflare /compat expects provider/model. If user passes an unqualified model, default to OpenAI.
+      const effectiveModel = model.includes("/") ? model : `openai/${model}`;
+
+      return createCloudflareGatewayProvider({
+        accountId: env.CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID,
+        gatewayId: env.CLOUDFLARE_AI_GATEWAY_ID,
+        token: env.CLOUDFLARE_AI_GATEWAY_TOKEN,
+        model: effectiveModel,
       });
+    }
 
     case "ai-sdk": {
       // Collect all available API keys
@@ -77,8 +90,12 @@ export function isLLMConfigured(env: Env): boolean {
   const providerType = (env.LLM_PROVIDER as LLMProviderType) ?? "openai-raw";
 
   switch (providerType) {
-    case "vercel-gateway":
-      return !!env.AI_GATEWAY_API_KEY;
+    case "cloudflare-gateway":
+      return !!(
+        env.CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID &&
+        env.CLOUDFLARE_AI_GATEWAY_ID &&
+        env.CLOUDFLARE_AI_GATEWAY_TOKEN
+      );
     case "ai-sdk":
       // Any provider API key enables AI SDK
       return !!(
