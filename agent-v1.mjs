@@ -316,24 +316,28 @@ class CryptoAgent {
       
       // Generate signal based on momentum
       const threshold = this.config.crypto_momentum_threshold || 2.0;
+      const hasSignificantMove = Math.abs(momentum) >= threshold || Math.abs(shortTermMomentum) >= threshold * 0.5;
       
-      if (Math.abs(momentum) >= threshold || Math.abs(shortTermMomentum) >= threshold * 0.5) {
-        const isBullish = momentum > 0 || shortTermMomentum > 0;
-        const sentiment = isBullish ? Math.min(momentum / 10, 1) : Math.max(momentum / 10, -1);
-        
-        signals.push({
-          symbol,
-          source: "crypto_momentum",
-          sentiment: Math.abs(sentiment),
-          volume: 100, // Crypto always has volume
-          bullish: isBullish ? 1 : 0,
-          bearish: isBullish ? 0 : 1,
-          reason: `Crypto momentum: ${momentum >= 0 ? '+' : ''}${momentum.toFixed(2)}% (24h), ${shortTermMomentum >= 0 ? '+' : ''}${shortTermMomentum.toFixed(2)}% (recent)`,
-          isCrypto: true,
-          momentum,
-          price,
-        });
-      }
+      // For crypto, always generate a signal if price is available (so dashboard shows it)
+      // But only mark as bullish/buy-worthy if momentum exceeds threshold
+      const isBullish = momentum > 0 || shortTermMomentum > 0;
+      const effectiveMomentum = Math.abs(momentum) > Math.abs(shortTermMomentum) ? momentum : shortTermMomentum;
+      
+      // Sentiment scales with momentum: 2% move = 0.4 sentiment, 5% = 1.0
+      const rawSentiment = hasSignificantMove && isBullish ? Math.min(Math.abs(effectiveMomentum) / 5, 1) : 0.1;
+      
+      signals.push({
+        symbol,
+        source: "crypto_momentum",
+        sentiment: rawSentiment,
+        volume: 100,
+        bullish: isBullish ? 1 : 0,
+        bearish: isBullish ? 0 : 1,
+        reason: `Crypto: ${momentum >= 0 ? '+' : ''}${momentum.toFixed(2)}% (24h)${shortTermMomentum !== 0 ? `, ${shortTermMomentum >= 0 ? '+' : ''}${shortTermMomentum.toFixed(2)}% (recent)` : ''}`,
+        isCrypto: true,
+        momentum: effectiveMomentum,
+        price,
+      });
       
       await sleep(200);
     }
