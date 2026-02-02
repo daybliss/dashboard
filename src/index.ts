@@ -56,7 +56,7 @@ export default {
       return new Response(
         JSON.stringify({
           name: "mahoraga",
-          version: "1.0.0",
+          version: "0.3.0",
           description: "Autonomous LLM-powered trading agent on Cloudflare Workers",
           endpoints: {
             health: "/health",
