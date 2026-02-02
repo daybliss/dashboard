@@ -3,7 +3,6 @@ export interface Env {
   CACHE: KVNamespace;
   ARTIFACTS: R2Bucket;
   SESSION: DurableObjectNamespace;
-  TRADING_AGENT: DurableObjectNamespace;
 
   ALPACA_API_KEY: string;
   ALPACA_API_SECRET: string;

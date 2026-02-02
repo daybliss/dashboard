@@ -1,11 +1,9 @@
 import type { Env } from "./env.d";
 import { MahoragaMcpAgent } from "./mcp/agent";
 import { handleCronEvent } from "./jobs/cron";
-import { getTradingAgentStub } from "./durable-objects/trading-agent";
 
 export { SessionDO } from "./durable-objects/session";
 export { MahoragaMcpAgent };
-export { TradingAgentDO } from "./durable-objects/trading-agent";
 
 export default {
   async fetch(
@@ -37,7 +35,6 @@ export default {
           endpoints: {
             health: "/health",
             mcp: "/mcp (via Durable Object)",
-            agent: "/agent/* (Trading Agent DO)",
           },
         }),
         {
@@ -48,18 +45,6 @@ export default {
 
     if (url.pathname.startsWith("/mcp")) {
       return MahoragaMcpAgent.mount("/mcp", { binding: "MCP_AGENT" }).fetch(request, env, ctx);
-    }
-
-    if (url.pathname.startsWith("/agent")) {
-      const stub = getTradingAgentStub(env);
-      const agentPath = url.pathname.replace("/agent", "") || "/status";
-      const agentUrl = new URL(agentPath, "http://agent");
-      agentUrl.search = url.search;
-      return stub.fetch(new Request(agentUrl.toString(), {
-        method: request.method,
-        headers: request.headers,
-        body: request.body,
-      }));
     }
 
     return new Response("Not found", { status: 404 });

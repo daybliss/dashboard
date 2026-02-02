@@ -62,17 +62,9 @@ class_name = "SessionDO"
 name = "MCP_AGENT"
 class_name = "MahoragaMcpAgent"
 
-[[durable_objects.bindings]]
-name = "TRADING_AGENT"
-class_name = "TradingAgentDO"
-
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SessionDO", "MahoragaMcpAgent"]
-
-[[migrations]]
-tag = "v2"
-new_sqlite_classes = ["TradingAgentDO"]
 
 # ============================================================================
 # Cron Triggers
