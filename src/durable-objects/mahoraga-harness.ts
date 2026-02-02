@@ -583,9 +583,8 @@ export class MahoragaHarness extends DurableObject<Env> {
     const url = new URL(request.url);
     const action = url.pathname.slice(1);
 
-    // [SECURITY] Protected endpoints require Bearer token authentication
-    const protectedActions = ["enable", "disable", "config", "trigger", "status", "logs", "costs", "signals"];
-    if (protectedActions.includes(action) || (action === "config" && request.method === "POST")) {
+    const protectedActions = ["enable", "disable", "config", "trigger", "status", "logs", "costs", "signals", "setup/status"];
+    if (protectedActions.includes(action)) {
       if (!this.isAuthorized(request)) {
         return this.unauthorizedResponse();
       }
