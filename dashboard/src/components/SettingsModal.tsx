@@ -11,7 +11,7 @@ interface SettingsModalProps {
 export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
   const [localConfig, setLocalConfig] = useState<Config>(config)
   const [saving, setSaving] = useState(false)
-  const [apiToken, setApiToken] = useState(localStorage.getItem('mahoraga_token') || '')
+  const [apiToken, setApiToken] = useState(localStorage.getItem('mahoraga_api_token') || '')
 
   useEffect(() => {
     setLocalConfig(config)
@@ -19,9 +19,9 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
 
   const handleTokenSave = () => {
     if (apiToken) {
-      localStorage.setItem('mahoraga_token', apiToken)
+      localStorage.setItem('mahoraga_api_token', apiToken)
     } else {
-      localStorage.removeItem('mahoraga_token')
+      localStorage.removeItem('mahoraga_api_token')
     }
     window.location.reload()
   }
@@ -61,14 +61,14 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
                 className="hud-input flex-1"
                 value={apiToken}
                 onChange={e => setApiToken(e.target.value)}
-                placeholder="Enter KILL_SWITCH_SECRET"
+                placeholder="Enter MAHORAGA_API_TOKEN"
               />
               <button className="hud-button" onClick={handleTokenSave}>
                 Save & Reload
               </button>
             </div>
             <p className="text-[9px] text-hud-text-dim mt-1">
-              Your KILL_SWITCH_SECRET from Cloudflare. Required for all API access.
+              Your MAHORAGA_API_TOKEN from Cloudflare secrets. Required for all API access.
             </p>
           </div>
 

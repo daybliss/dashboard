@@ -538,31 +538,43 @@ export class MahoragaHarness extends DurableObject<Env> {
   // Example: /webhook for external alerts, /backtest for simulation
   // ============================================================================
 
-  // [SECURITY] Verify Bearer token matches KILL_SWITCH_SECRET
+  private constantTimeCompare(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let mismatch = 0;
+    for (let i = 0; i < a.length; i++) {
+      mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return mismatch === 0;
+  }
+
   private isAuthorized(request: Request): boolean {
-    const secret = this.env.KILL_SWITCH_SECRET;
-    if (!secret) {
-      // If no secret configured, deny all protected requests
-      console.warn("[MahoragaHarness] KILL_SWITCH_SECRET not set - denying protected request");
+    const token = this.env.MAHORAGA_API_TOKEN;
+    if (!token) {
+      console.warn("[MahoragaHarness] MAHORAGA_API_TOKEN not set - denying request");
       return false;
     }
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return false;
     }
-    const token = authHeader.slice(7);
-    // Constant-time comparison to prevent timing attacks
-    if (token.length !== secret.length) return false;
-    let mismatch = 0;
-    for (let i = 0; i < token.length; i++) {
-      mismatch |= token.charCodeAt(i) ^ secret.charCodeAt(i);
+    return this.constantTimeCompare(authHeader.slice(7), token);
+  }
+
+  private isKillSwitchAuthorized(request: Request): boolean {
+    const secret = this.env.KILL_SWITCH_SECRET;
+    if (!secret) {
+      return false;
     }
-    return mismatch === 0;
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return false;
+    }
+    return this.constantTimeCompare(authHeader.slice(7), secret);
   }
 
   private unauthorizedResponse(): Response {
     return new Response(
-      JSON.stringify({ error: "Unauthorized. Set Authorization: Bearer <KILL_SWITCH_SECRET>" }),
+      JSON.stringify({ error: "Unauthorized. Requires: Authorization: Bearer <MAHORAGA_API_TOKEN>" }),
       { status: 401, headers: { "Content-Type": "application/json" } }
     );
   }
@@ -609,9 +621,17 @@ export class MahoragaHarness extends DurableObject<Env> {
           return this.jsonResponse({ signals: this.state.signalCache });
         
         case "trigger":
-          // Manual trigger for testing
           await this.alarm();
           return this.jsonResponse({ ok: true, message: "Alarm triggered" });
+        
+        case "kill":
+          if (!this.isKillSwitchAuthorized(request)) {
+            return new Response(
+              JSON.stringify({ error: "Forbidden. Requires: Authorization: Bearer <KILL_SWITCH_SECRET>" }),
+              { status: 403, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return this.handleKillSwitch();
         
         default:
           return new Response("Not found", { status: 404 });
@@ -691,6 +711,21 @@ export class MahoragaHarness extends DurableObject<Env> {
     const limit = parseInt(url.searchParams.get("limit") || "100");
     const logs = this.state.logs.slice(-limit);
     return this.jsonResponse({ logs });
+  }
+
+  private async handleKillSwitch(): Promise<Response> {
+    this.state.enabled = false;
+    await this.ctx.storage.deleteAlarm();
+    this.state.signalCache = [];
+    this.state.signalResearch = {};
+    this.state.premarketPlan = null;
+    await this.persist();
+    this.log("System", "kill_switch_activated", { timestamp: new Date().toISOString() });
+    return this.jsonResponse({ 
+      ok: true, 
+      message: "KILL SWITCH ACTIVATED. Agent disabled, alarms cancelled, signal cache cleared.",
+      note: "Existing positions are NOT automatically closed. Review and close manually if needed."
+    });
   }
 
   // ============================================================================

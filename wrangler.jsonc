@@ -18,13 +18,16 @@
   },
 
   // Secrets (set via `wrangler secret put <NAME>`):
+  // Required:
   // - ALPACA_API_KEY
   // - ALPACA_API_SECRET
-  // - ALPACA_PAPER ("true" for paper trading)
   // - OPENAI_API_KEY
-  // - KILL_SWITCH_SECRET
-  // - TWITTER_BEARER_TOKEN (optional)
-  // - DISCORD_WEBHOOK_URL (optional)
+  // - MAHORAGA_API_TOKEN (API authentication - generate with: openssl rand -base64 48)
+  // - KILL_SWITCH_SECRET (emergency kill switch + approval token signing)
+  // Optional:
+  // - ALPACA_PAPER ("true" for paper trading)
+  // - TWITTER_BEARER_TOKEN
+  // - DISCORD_WEBHOOK_URL
 
   "d1_databases": [
     {

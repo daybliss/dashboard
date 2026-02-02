@@ -57,15 +57,20 @@ npx wrangler d1 migrations apply mahoraga-db
 ### 3. Set secrets
 
 ```bash
+# Required
 npx wrangler secret put ALPACA_API_KEY
 npx wrangler secret put ALPACA_API_SECRET
 npx wrangler secret put OPENAI_API_KEY
-npx wrangler secret put KILL_SWITCH_SECRET
+
+# API Authentication - generate a secure random token (64+ chars recommended)
+# Example: openssl rand -base64 48
+npx wrangler secret put MAHORAGA_API_TOKEN
 
 # Optional
-npx wrangler secret put ALPACA_PAPER        # "true" for paper trading (recommended)
+npx wrangler secret put ALPACA_PAPER         # "true" for paper trading (recommended)
 npx wrangler secret put TWITTER_BEARER_TOKEN
 npx wrangler secret put DISCORD_WEBHOOK_URL
+npx wrangler secret put KILL_SWITCH_SECRET   # Emergency kill switch (separate from API token)
 ```
 
 ### 4. Deploy
@@ -76,14 +81,14 @@ npx wrangler deploy
 
 ### 5. Enable the agent
 
-All API endpoints require authentication via Bearer token (your `KILL_SWITCH_SECRET`):
+All API endpoints require authentication via Bearer token:
 
 ```bash
-# Set your secret as an env var for convenience
-export MAHORAGA_SECRET="your-kill-switch-secret"
+# Set your API token as an env var for convenience
+export MAHORAGA_TOKEN="your-api-token"
 
 # Enable the agent
-curl -H "Authorization: Bearer $MAHORAGA_SECRET" \
+curl -H "Authorization: Bearer $MAHORAGA_TOKEN" \
   https://your-worker.workers.dev/agent/enable
 ```
 
@@ -91,14 +96,18 @@ curl -H "Authorization: Bearer $MAHORAGA_SECRET" \
 
 ```bash
 # Check status
-curl -H "Authorization: Bearer $MAHORAGA_SECRET" \
+curl -H "Authorization: Bearer $MAHORAGA_TOKEN" \
   https://your-worker.workers.dev/agent/status
 
 # View logs
-curl -H "Authorization: Bearer $MAHORAGA_SECRET" \
+curl -H "Authorization: Bearer $MAHORAGA_TOKEN" \
   https://your-worker.workers.dev/agent/logs
 
-# Run dashboard locally (configure API_TOKEN in dashboard/.env)
+# Emergency kill switch (uses separate KILL_SWITCH_SECRET)
+curl -H "Authorization: Bearer $KILL_SWITCH_SECRET" \
+  https://your-worker.workers.dev/agent/kill
+
+# Run dashboard locally
 cd dashboard && npm install && npm run dev
 ```
 
@@ -112,7 +121,7 @@ npx wrangler dev
 cd dashboard && npm run dev
 
 # Terminal 3 - Enable the agent
-curl -H "Authorization: Bearer $MAHORAGA_SECRET" \
+curl -H "Authorization: Bearer $MAHORAGA_TOKEN" \
   http://localhost:8787/agent/enable
 ```
 
@@ -157,7 +166,48 @@ See `docs/harness.html` for detailed customization guide.
 | `/agent/config` | Get or update configuration |
 | `/agent/logs` | Get recent logs |
 | `/agent/trigger` | Manually trigger (for testing) |
+| `/agent/kill` | Emergency kill switch (uses `KILL_SWITCH_SECRET`) |
 | `/mcp` | MCP server for tool access |
+
+## Security
+
+### API Authentication (Required)
+
+All `/agent/*` endpoints require Bearer token authentication using `MAHORAGA_API_TOKEN`:
+
+```bash
+curl -H "Authorization: Bearer $MAHORAGA_TOKEN" https://your-worker.workers.dev/agent/status
+```
+
+Generate a secure token: `openssl rand -base64 48`
+
+### Emergency Kill Switch
+
+The `/agent/kill` endpoint uses a separate `KILL_SWITCH_SECRET` for emergency shutdown:
+
+```bash
+curl -H "Authorization: Bearer $KILL_SWITCH_SECRET" https://your-worker.workers.dev/agent/kill
+```
+
+This immediately disables the agent, cancels all alarms, and clears the signal cache.
+
+### Cloudflare Access (Recommended)
+
+For additional security with SSO/email verification, set up Cloudflare Access:
+
+```bash
+# 1. Create a Cloudflare API token with Access:Edit permissions
+#    https://dash.cloudflare.com/profile/api-tokens
+
+# 2. Run the setup script
+CLOUDFLARE_API_TOKEN=your-token \
+CLOUDFLARE_ACCOUNT_ID=your-account-id \
+MAHORAGA_WORKER_URL=https://mahoraga.your-subdomain.workers.dev \
+MAHORAGA_ALLOWED_EMAILS=you@example.com \
+npm run setup:access
+```
+
+This creates a Cloudflare Access Application with email verification or One-Time PIN.
 
 ## Project Structure
 
