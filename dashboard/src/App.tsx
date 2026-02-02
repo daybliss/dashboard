@@ -271,15 +271,40 @@ export default function App() {
   }
 
   if (error && !status) {
+    const isAuthError = error.includes('Unauthorized')
     return (
       <div className="min-h-screen bg-hud-bg flex items-center justify-center p-6">
-        <Panel title="CONNECTION ERROR" className="max-w-md w-full">
+        <Panel title={isAuthError ? "AUTHENTICATION REQUIRED" : "CONNECTION ERROR"} className="max-w-md w-full">
           <div className="text-center py-8">
-            <div className="text-hud-error text-2xl mb-4">OFFLINE</div>
+            <div className="text-hud-error text-2xl mb-4">{isAuthError ? "NO TOKEN" : "OFFLINE"}</div>
             <p className="text-hud-text-dim text-sm mb-6">{error}</p>
-            <p className="text-hud-text-dim text-xs">
-              Enable the agent: <code className="text-hud-primary">curl localhost:8787/agent/enable</code>
-            </p>
+            {isAuthError ? (
+              <div className="space-y-4">
+                <div className="text-left bg-hud-panel p-4 border border-hud-line">
+                  <label className="hud-label block mb-2">API Token</label>
+                  <input
+                    type="password"
+                    className="hud-input w-full mb-2"
+                    placeholder="Enter MAHORAGA_API_TOKEN"
+                    defaultValue={localStorage.getItem('mahoraga_api_token') || ''}
+                    onChange={(e) => localStorage.setItem('mahoraga_api_token', e.target.value)}
+                  />
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="hud-button w-full"
+                  >
+                    Save & Reload
+                  </button>
+                </div>
+                <p className="text-hud-text-dim text-xs">
+                  Find your token in <code className="text-hud-primary">.dev.vars</code> (local) or Cloudflare secrets (deployed)
+                </p>
+              </div>
+            ) : (
+              <p className="text-hud-text-dim text-xs">
+                Enable the agent: <code className="text-hud-primary">curl -H "Authorization: Bearer $TOKEN" localhost:8787/agent/enable</code>
+              </p>
+            )}
           </div>
         </Panel>
       </div>
