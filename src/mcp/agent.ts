@@ -33,7 +33,7 @@ import {
 } from "../storage/d1/queries/events";
 import { computeTechnicals, detectSignals, type TechnicalIndicators, type Signal } from "../providers/technicals";
 import { scrapeUrl, extractFinancialData, isAllowedDomain } from "../providers/scraper";
-import { createOpenAIProvider } from "../providers/llm/openai";
+import { createLLMProvider } from "../providers/llm/factory";
 import { classifyEvent, generateResearchReport, summarizeLearnedRules } from "../providers/llm/classifier";
 import { getDTE } from "../providers/alpaca/options";
 import type { LLMProvider, OptionsProvider } from "../providers/types";
@@ -60,8 +60,8 @@ export class MahoragaMcpAgent extends McpAgent<Env> {
     const storedPolicy = await getPolicyConfig(db);
     this.policyConfig = storedPolicy ?? getDefaultPolicyConfig(this.env);
 
-    if (this.env.OPENAI_API_KEY && this.env.FEATURE_LLM_RESEARCH === "true") {
-      this.llm = createOpenAIProvider({ apiKey: this.env.OPENAI_API_KEY });
+    if (this.env.FEATURE_LLM_RESEARCH === "true") {
+      this.llm = createLLMProvider(this.env);
     }
 
     this.options = alpaca.options;
@@ -1251,7 +1251,7 @@ export class MahoragaMcpAgent extends McpAgent<Env> {
         const startTime = Date.now();
         const db = createD1Client(this.env.DB);
         const alpaca = createAlpacaProviders(this.env);
-        
+
         if (!this.options || !this.options.isConfigured()) {
           return { content: [{ type: "text" as const, text: JSON.stringify(failure({ code: ErrorCode.NOT_SUPPORTED, message: "Options provider not configured" }), null, 2) }], isError: true };
         }
@@ -1415,7 +1415,7 @@ export class MahoragaMcpAgent extends McpAgent<Env> {
     const dateStr = match[2];
     const typeChar = match[3];
     const strikeStr = match[4];
-    
+
     if (!underlying || !dateStr || !typeChar || !strikeStr) return null;
 
     const year = 2000 + parseInt(dateStr.slice(0, 2), 10);

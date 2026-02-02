@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { Config } from '../types'
 import { Panel } from './Panel'
 
@@ -13,9 +13,8 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
   const [saving, setSaving] = useState(false)
   const [apiToken, setApiToken] = useState(localStorage.getItem('mahoraga_api_token') || '')
 
-  useEffect(() => {
-    setLocalConfig(config)
-  }, [config])
+  // Note: We intentionally do NOT sync localConfig with the config prop after initial mount.
+  // This prevents the parent's polling (every 5s) from overwriting user's unsaved changes.
 
   const handleTokenSave = () => {
     if (apiToken) {
@@ -42,8 +41,8 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <Panel 
-        title="TRADING CONFIGURATION" 
+      <Panel
+        title="TRADING CONFIGURATION"
         className="w-full max-w-2xl max-h-[90vh] overflow-auto"
         titleRight={
           <button onClick={onClose} className="hud-label hover:text-hud-primary">
@@ -198,6 +197,25 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
           {/* LLM Config */}
           <div>
             <h3 className="hud-label mb-3 text-hud-primary">LLM Configuration</h3>
+            <div className="grid grid-cols-1 gap-4 mb-4">
+              <div>
+                <label className="hud-label block mb-1">Provider</label>
+                <select
+                  className="hud-input w-full"
+                  value={localConfig.llm_provider || 'openai-raw'}
+                  onChange={e => handleChange('llm_provider', e.target.value)}
+                >
+                  <option value="openai-raw">OpenAI Direct (default)</option>
+                  <option value="ai-sdk">AI SDK (8 providers)</option>
+                  <option value="vercel-gateway">Vercel AI Gateway</option>
+                </select>
+                <p className="text-[9px] text-hud-text-dim mt-1">
+                  {localConfig.llm_provider === 'ai-sdk' && 'Supports: OpenAI, Anthropic, Google, Mistral, xAI, Groq, DeepSeek, Cohere'}
+                  {localConfig.llm_provider === 'vercel-gateway' && 'Uses AI_GATEWAY_API_KEY for unified access.'}
+                  {(!localConfig.llm_provider || localConfig.llm_provider === 'openai-raw') && 'Uses OPENAI_API_KEY directly.'}
+                </p>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="hud-label block mb-1">Research Model (cheap)</label>
@@ -206,8 +224,55 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
                   value={localConfig.llm_model}
                   onChange={e => handleChange('llm_model', e.target.value)}
                 >
-                  <option value="gpt-4o-mini">gpt-4o-mini</option>
-                  <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                  {(!localConfig.llm_provider || localConfig.llm_provider === 'openai-raw') && (
+                    <>
+                      <option value="gpt-4o-mini">gpt-4o-mini</option>
+                      <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                    </>
+                  )}
+                  {localConfig.llm_provider === 'ai-sdk' && (
+                    <>
+                      <optgroup label="OpenAI">
+                        <option value="openai/gpt-4o-mini">gpt-4o-mini</option>
+                        <option value="openai/gpt-3.5-turbo">gpt-3.5-turbo</option>
+                      </optgroup>
+                      <optgroup label="Anthropic">
+                        <option value="anthropic/claude-3-5-haiku-latest">claude-3.5-haiku</option>
+                      </optgroup>
+                      <optgroup label="Google">
+                        <option value="google/gemini-2.5-flash">gemini-2.5-flash</option>
+                        <option value="google/gemini-2.0-flash">gemini-2.0-flash</option>
+                      </optgroup>
+                      <optgroup label="DeepSeek">
+                        <option value="deepseek/deepseek-chat">deepseek-chat</option>
+                      </optgroup>
+                    </>
+                  )}
+                  {localConfig.llm_provider === 'vercel-gateway' && (
+                    <>
+                      <optgroup label="OpenAI">
+                        <option value="openai/gpt-4o-mini">gpt-4o-mini</option>
+                        <option value="openai/gpt-5-mini">gpt-5-mini</option>
+                      </optgroup>
+                      <optgroup label="Anthropic">
+                        <option value="anthropic/claude-haiku-4.5">claude-haiku-4.5</option>
+                      </optgroup>
+                      <optgroup label="Google">
+                        <option value="google/gemini-3-flash">gemini-3-flash</option>
+                        <option value="google/gemini-2.5-flash">gemini-2.5-flash</option>
+                        <option value="google/gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+                      </optgroup>
+                      <optgroup label="DeepSeek">
+                        <option value="deepseek/deepseek-v3.2">deepseek-v3.2</option>
+                      </optgroup>
+                      <optgroup label="MiniMax">
+                        <option value="minimax/minimax-m2.1">minimax-m2.1</option>
+                      </optgroup>
+                      <optgroup label="Alibaba">
+                        <option value="alibaba/qwen3-next-80b-a3b-instruct">qwen3-next-80b</option>
+                      </optgroup>
+                    </>
+                  )}
                 </select>
               </div>
               <div>
@@ -217,9 +282,68 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
                   value={localConfig.llm_analyst_model || 'gpt-4o'}
                   onChange={e => handleChange('llm_analyst_model', e.target.value)}
                 >
-                  <option value="gpt-5.2-2025-12-11">GPT-5.2 (best)</option>
-                  <option value="gpt-4o">gpt-4o</option>
-                  <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
+                  {(!localConfig.llm_provider || localConfig.llm_provider === 'openai-raw') && (
+                    <>
+                      <option value="gpt-5.2-2025-12-11">GPT-5.2 (best)</option>
+                      <option value="gpt-4o">gpt-4o</option>
+                      <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
+                    </>
+                  )}
+                  {localConfig.llm_provider === 'ai-sdk' && (
+                    <>
+                      <optgroup label="OpenAI">
+                        <option value="openai/gpt-4o">gpt-4o</option>
+                        <option value="openai/o1">o1 (reasoning)</option>
+                        <option value="openai/o1-mini">o1-mini</option>
+                      </optgroup>
+                      <optgroup label="Anthropic">
+                        <option value="anthropic/claude-3-7-sonnet-latest">claude-3.7-sonnet (best)</option>
+                        <option value="anthropic/claude-sonnet-4-0">claude-sonnet-4</option>
+                        <option value="anthropic/claude-opus-4-1">claude-opus-4</option>
+                      </optgroup>
+                      <optgroup label="Google">
+                        <option value="google/gemini-2.5-pro">gemini-2.5-pro</option>
+                        <option value="google/gemini-3-pro-preview">gemini-3-pro (preview)</option>
+                      </optgroup>
+                      <optgroup label="xAI">
+                        <option value="xai/grok-4">grok-4</option>
+                        <option value="xai/grok-3">grok-3</option>
+                        <option value="xai/grok-4-fast-reasoning">grok-4-fast-reasoning</option>
+                      </optgroup>
+                      <optgroup label="DeepSeek">
+                        <option value="deepseek/deepseek-reasoner">deepseek-reasoner</option>
+                        <option value="deepseek/deepseek-chat">deepseek-chat</option>
+                      </optgroup>
+                    </>
+                  )}
+                  {localConfig.llm_provider === 'vercel-gateway' && (
+                    <>
+                      <optgroup label="OpenAI">
+                        <option value="openai/gpt-5.2">gpt-5.2 (best)</option>
+                        <option value="openai/gpt-5">gpt-5</option>
+                        <option value="openai/gpt-4o">gpt-4o</option>
+                      </optgroup>
+                      <optgroup label="Anthropic">
+                        <option value="anthropic/claude-opus-4.5">claude-opus-4.5 (best)</option>
+                        <option value="anthropic/claude-sonnet-4.5">claude-sonnet-4.5</option>
+                      </optgroup>
+                      <optgroup label="Google">
+                        <option value="google/gemini-2.5-pro">gemini-2.5-pro</option>
+                      </optgroup>
+                      <optgroup label="xAI">
+                        <option value="xai/grok-4.1-fast-reasoning">grok-4.1-fast-reasoning</option>
+                        <option value="xai/grok-code-fast-1">grok-code-fast-1</option>
+                      </optgroup>
+                      <optgroup label="Other">
+                        <option value="zai/glm-4.7">zai/glm-4.7</option>
+                        <option value="moonshotai/kimi-k2.5">moonshotai/kimi-k2.5</option>
+                      </optgroup>
+                      <optgroup label="Alibaba">
+                        <option value="alibaba/qwen-3-235b">qwen-3-235b</option>
+                        <option value="alibaba/qwen3-next-80b-a3b-instruct">qwen3-next-80b</option>
+                      </optgroup>
+                    </>
+                  )}
                 </select>
               </div>
             </div>
@@ -481,8 +605,8 @@ export function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
             <button className="hud-button" onClick={onClose}>
               Cancel
             </button>
-            <button 
-              className="hud-button" 
+            <button
+              className="hud-button"
               onClick={handleSave}
               disabled={saving}
             >

@@ -9,6 +9,13 @@ export interface Env {
   ALPACA_API_SECRET: string;
   ALPACA_PAPER?: string;
   OPENAI_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
+  GOOGLE_GENERATIVE_AI_API_KEY?: string;
+  XAI_API_KEY?: string;
+  DEEPSEEK_API_KEY?: string;
+  AI_GATEWAY_API_KEY?: string;
+  LLM_PROVIDER?: "openai-raw" | "ai-sdk" | "vercel-gateway";
+  LLM_MODEL?: string;
   TWITTER_BEARER_TOKEN?: string;
   DISCORD_WEBHOOK_URL?: string;
   MAHORAGA_API_TOKEN: string;
@@ -27,5 +34,5 @@ export interface Env {
 }
 
 declare module "cloudflare:workers" {
-  interface Env extends Env {}
+  interface Env extends Env { }
 }
