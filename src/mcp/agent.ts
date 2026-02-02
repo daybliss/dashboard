@@ -584,7 +584,7 @@ export class MahoragaMcpAgent extends McpAgent<Env> {
           { category: "Orders", tools: ["orders-preview", "orders-submit", "orders-list", "orders-cancel"] },
           { category: "Risk", tools: ["risk-status", "kill-switch-enable", "kill-switch-disable"] },
           { category: "Memory", tools: ["memory-log-trade", "memory-log-outcome", "memory-query", "memory-summarize", "memory-set-preferences"] },
-          { category: "Market Data", tools: ["symbol-overview", "prices-bars", "market-clock", "market-movers"] },
+          { category: "Market Data", tools: ["symbol-overview", "prices-bars", "market-clock", "market-movers", "market-quote"] },
           { category: "Technicals", tools: ["technicals-get", "signals-get", "signals-batch"] },
           { category: "Events", tools: ["events-ingest", "events-list", "events-classify"] },
           { category: "News", tools: ["news-list", "news-index"] },
@@ -850,6 +850,33 @@ export class MahoragaMcpAgent extends McpAgent<Env> {
         try {
           const quotes = await alpaca.marketData.getQuotes(symbols.map((s) => s.toUpperCase()));
           return { content: [{ type: "text" as const, text: JSON.stringify(success({ count: Object.keys(quotes).length, quotes }), null, 2) }] };
+        } catch (error) {
+          return { content: [{ type: "text" as const, text: JSON.stringify(failure({ code: ErrorCode.PROVIDER_ERROR, message: String(error) }), null, 2) }], isError: true };
+        }
+      }
+    );
+
+    this.server.tool(
+      "market-quote",
+      "Get a quote for a single symbol (stocks or crypto)",
+      { symbol: z.string().min(1) },
+      async ({ symbol }) => {
+        try {
+          const isCrypto = symbol.includes("/");
+          const snapshot = isCrypto
+            ? await alpaca.marketData.getCryptoSnapshot(symbol)
+            : await alpaca.marketData.getSnapshot(symbol.toUpperCase());
+
+          const result = success({
+            symbol: isCrypto ? symbol : symbol.toUpperCase(),
+            price: snapshot.latest_trade.price,
+            bid: snapshot.latest_quote.bid_price,
+            ask: snapshot.latest_quote.ask_price,
+            prev_close: snapshot.prev_daily_bar.c,
+            change_pct: ((snapshot.daily_bar.c - snapshot.prev_daily_bar.c) / snapshot.prev_daily_bar.c) * 100,
+            volume: snapshot.daily_bar.v,
+          });
+          return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
         } catch (error) {
           return { content: [{ type: "text" as const, text: JSON.stringify(failure({ code: ErrorCode.PROVIDER_ERROR, message: String(error) }), null, 2) }], isError: true };
         }

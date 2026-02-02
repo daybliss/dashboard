@@ -196,6 +196,20 @@ export class AlpacaMarketDataProvider implements MarketDataProvider {
     return parseSnapshot(symbol, snapshot);
   }
 
+  async getCryptoSnapshot(symbol: string): Promise<Snapshot> {
+    const response = await this.client.dataRequest<{ snapshots: AlpacaSnapshotsResponse }>(
+      "GET",
+      "/v1beta3/crypto/us/snapshots",
+      { symbols: symbol }
+    );
+
+    const snapshot = response.snapshots?.[symbol as keyof typeof response.snapshots];
+    if (!snapshot) {
+      throw new Error(`No crypto snapshot data for ${symbol}`);
+    }
+    return parseSnapshot(symbol, snapshot);
+  }
+
   async getSnapshots(symbols: string[]): Promise<Record<string, Snapshot>> {
     const response = await this.client.dataRequest<AlpacaSnapshotsResponse>(
       "GET",
