@@ -263,7 +263,7 @@ export default function App() {
             <div className="text-hud-error text-2xl mb-4">OFFLINE</div>
             <p className="text-hud-text-dim text-sm mb-6">{error}</p>
             <p className="text-hud-text-dim text-xs">
-              Start the agent: <code className="text-hud-primary">node agent-v1.mjs</code>
+              Enable the agent: <code className="text-hud-primary">curl localhost:8787/agent/enable</code>
             </p>
           </div>
         </Panel>

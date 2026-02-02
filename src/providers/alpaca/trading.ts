@@ -7,6 +7,7 @@ import type {
   ListOrdersParams,
   MarketClock,
   MarketDay,
+  Asset,
   BrokerProvider,
 } from "../types";
 
@@ -265,6 +266,21 @@ export class AlpacaTradingProvider implements BrokerProvider {
       close: day.close,
       settlement_date: day.settlement_date,
     }));
+  }
+
+  async getAsset(symbol: string): Promise<Asset | null> {
+    try {
+      const raw = await this.client.tradingRequest<Asset>(
+        "GET",
+        `/v2/assets/${encodeURIComponent(symbol)}`
+      );
+      return raw;
+    } catch (error) {
+      if ((error as { code?: string }).code === "NOT_FOUND") {
+        return null;
+      }
+      throw error;
+    }
   }
 }
 

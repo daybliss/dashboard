@@ -1,9 +1,11 @@
 import type { Env } from "./env.d";
 import { MahoragaMcpAgent } from "./mcp/agent";
 import { handleCronEvent } from "./jobs/cron";
+import { getHarnessStub } from "./durable-objects/mahoraga-harness";
 
 export { SessionDO } from "./durable-objects/session";
 export { MahoragaMcpAgent };
+export { MahoragaHarness } from "./durable-objects/mahoraga-harness";
 
 export default {
   async fetch(
@@ -30,11 +32,12 @@ export default {
       return new Response(
         JSON.stringify({
           name: "mahoraga",
-          version: "0.1.0",
-          description: "Cloudflare Workers MCP server for autonomous stock trading",
+          version: "1.0.0",
+          description: "Autonomous LLM-powered trading agent on Cloudflare Workers",
           endpoints: {
             health: "/health",
-            mcp: "/mcp (via Durable Object)",
+            mcp: "/mcp",
+            agent: "/agent/*",
           },
         }),
         {
@@ -45,6 +48,18 @@ export default {
 
     if (url.pathname.startsWith("/mcp")) {
       return MahoragaMcpAgent.mount("/mcp", { binding: "MCP_AGENT" }).fetch(request, env, ctx);
+    }
+
+    if (url.pathname.startsWith("/agent")) {
+      const stub = getHarnessStub(env);
+      const agentPath = url.pathname.replace("/agent", "") || "/status";
+      const agentUrl = new URL(agentPath, "http://harness");
+      agentUrl.search = url.search;
+      return stub.fetch(new Request(agentUrl.toString(), {
+        method: request.method,
+        headers: request.headers,
+        body: request.body,
+      }));
     }
 
     return new Response("Not found", { status: 404 });

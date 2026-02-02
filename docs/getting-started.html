@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started — Mahoraga</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link href="https://cdn.jsdelivr.net/npm/iosevka-webfont@14.0.0/iosevka.css" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #fdfcfa; --bg-subtle: #f5f3ef; --border: #e8e4dd;
+      --muted: #9a9488; --subtle: #6b655c; --text: #3d3a35; --bright: #1a1815;
+      --accent: #2563eb; --success: #16a34a;
+    }
+    html { font-size: 14px; }
+    body {
+      font-family: 'Iosevka Web', 'Iosevka', monospace;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: var(--accent); color: white; }
+    .container { max-width: 640px; margin: 0 auto; padding: 48px 24px 120px; }
+    
+    .nav { margin-bottom: 48px; }
+    .nav a {
+      color: var(--muted); text-decoration: none; font-size: 11px;
+      letter-spacing: 1px; text-transform: uppercase;
+      transition: color 0.15s;
+    }
+    .nav a:hover { color: var(--bright); }
+    
+    h1 {
+      font-size: 20px; font-weight: 600; color: var(--bright);
+      margin-bottom: 8px; letter-spacing: 1px;
+    }
+    .subtitle { color: var(--subtle); font-size: 13px; margin-bottom: 48px; }
+    
+    h2 {
+      font-size: 11px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 2px; color: var(--muted);
+      margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    h2:first-of-type { margin-top: 0; }
+    
+    p { margin-bottom: 16px; font-size: 13px; }
+    
+    pre {
+      background: var(--bg-subtle); border: 1px solid var(--border);
+      padding: 16px 20px; margin: 16px 0; overflow-x: auto;
+      font-size: 12px; line-height: 1.6;
+    }
+    code {
+      background: var(--bg-subtle); padding: 2px 6px; font-size: 12px;
+    }
+    pre code { background: none; padding: 0; }
+    
+    ul, ol { margin: 16px 0; padding-left: 24px; font-size: 13px; }
+    li { margin-bottom: 8px; }
+    
+    .note {
+      background: #dbeafe; border: 1px solid #3b82f6;
+      padding: 12px 16px; font-size: 12px; color: #1e40af;
+      margin: 16px 0;
+    }
+    .warning {
+      background: #fef3c7; border: 1px solid #f59e0b;
+      padding: 12px 16px; font-size: 12px; color: #92400e;
+      margin: 16px 0;
+    }
+    
+    table {
+      width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px;
+    }
+    th, td {
+      text-align: left; padding: 10px 12px; border: 1px solid var(--border);
+    }
+    th { background: var(--bg-subtle); font-weight: 500; color: var(--bright); }
+    
+    a { color: var(--accent); }
+    a:hover { text-decoration: none; }
+
+    .disclaimer {
+      background: #111;
+      color: #999;
+      text-align: center;
+      padding: 10px 16px;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    
+    .footer {
+      margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--muted);
+    }
+    .footer a { color: var(--subtle); text-decoration: none; margin-right: 24px; }
+    .footer a:hover { color: var(--bright); }
+  </style>
+</head>
+<body>
+  <div class="disclaimer">For educational purposes only. Trading involves substantial risk of loss. Not financial advice.</div>
+  <div class="container">
+    <nav class="nav">
+      <a href="./index.html">← Back to Mahoraga</a>
+    </nav>
+
+    <h1>Getting Started</h1>
+    <p class="subtitle">Get Mahoraga running in 10 minutes.</p>
+
+    <h2>Prerequisites</h2>
+    <ul>
+      <li>Node.js 18 or higher</li>
+      <li>Alpaca account (free, supports paper trading)</li>
+      <li>OpenAI API key (for LLM analysis)</li>
+    </ul>
+
+    <h2>1. Clone and Install</h2>
+    <pre>git clone https://github.com/ygwyg/MAHORAGA.git
+cd MAHORAGA
+npm install
+cd dashboard && npm install && cd ..</pre>
+
+    <h2>2. Configure API Keys</h2>
+    <p>Create a <code>.dev.vars</code> file in the project root:</p>
+    <pre>ALPACA_API_KEY=your_alpaca_key
+ALPACA_API_SECRET=your_alpaca_secret
+ALPACA_PAPER=true
+OPENAI_API_KEY=your_openai_key
+KILL_SWITCH_SECRET=any_random_string_here</pre>
+
+    <div class="warning">
+      <strong>Important:</strong> Always start with <code>ALPACA_PAPER=true</code> until you understand how the system works.
+    </div>
+
+    <h2>3. Get Your API Keys</h2>
+    
+    <p><strong>Alpaca (Required)</strong></p>
+    <ol>
+      <li>Create a free account at <a href="https://alpaca.markets">alpaca.markets</a></li>
+      <li>Go to <strong>Paper Trading</strong> → <strong>API Keys</strong></li>
+      <li>Click <strong>Generate New Keys</strong></li>
+      <li>Copy both the key and secret to <code>.dev.vars</code></li>
+    </ol>
+
+    <p><strong>OpenAI (Required)</strong></p>
+    <ol>
+      <li>Create an account at <a href="https://platform.openai.com">platform.openai.com</a></li>
+      <li>Add billing and credits ($10 is plenty to start)</li>
+      <li>Go to <strong>API Keys</strong> → <strong>Create new secret key</strong></li>
+      <li>Add to <code>.dev.vars</code>: <code>OPENAI_API_KEY=sk-your_key</code></li>
+    </ol>
+
+    <div class="note">
+      <strong>Estimated costs:</strong> ~$0.50-2/day using gpt-4o-mini, depending on trading activity.
+    </div>
+
+    <h2>4. Start the MCP Server</h2>
+    <pre>npm run dev</pre>
+    <p>The server runs at <code>http://localhost:8787</code></p>
+
+    <h2>5. Enable the Trading Agent</h2>
+    <p>The agent runs as a Durable Object. Enable it:</p>
+    <pre>curl http://localhost:8787/agent/enable</pre>
+    <p>The agent will start monitoring sentiment sources and making trading decisions.</p>
+
+    <h2>6. Open the Dashboard (Optional)</h2>
+    <p>In another terminal:</p>
+    <pre>cd dashboard
+npm run dev</pre>
+    <p>Open <code>http://localhost:5173</code> in your browser to monitor:</p>
+    <ul>
+      <li>Account balance and positions</li>
+      <li>Current signals and research</li>
+      <li>Agent activity logs</li>
+      <li>LLM cost tracking</li>
+    </ul>
+
+    <h2>What Happens Next</h2>
+    <p>The agent runs in a loop:</p>
+    <ol>
+      <li><strong>Data gathering (24/7)</strong> — Fetches trending stocks from StockTwits</li>
+      <li><strong>LLM research</strong> — Analyzes top signals for red flags and catalysts</li>
+      <li><strong>Trading (market hours)</strong> — Executes buy/sell based on LLM decisions</li>
+      <li><strong>Position management</strong> — Monitors held positions for exit signals</li>
+    </ol>
+
+    <h2>Next Steps</h2>
+    <ul>
+      <li><a href="./configuration.html">Configuration</a> — Customize trading parameters</li>
+      <li><a href="./architecture.html">Architecture</a> — How the system works</li>
+      <li><a href="./extending.html">Extending</a> — Add your own data sources</li>
+    </ul>
+
+    <div class="footer">
+      <a href="./index.html">Home</a>
+      <a href="./configuration.html">Config</a>
+      <a href="https://github.com/ygwyg/MAHORAGA">GitHub</a>
+      <a href="https://discord.gg/Ys8KpsW5NN">Discord</a>
+    </div>
+  </div>
+</body>
+</html>

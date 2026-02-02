@@ -16,15 +16,6 @@ agent-logs.json
 position-tracker.json
 trade-journal.json
 
-# Private agent (contains proprietary trading logic)
-agent-v2.mjs
-src/durable-objects/trading-agent-v2.ts
-src/index-v2.ts
-wrangler.v2.toml
-
-# Docs (hosted separately)
-docs/
-
 # -----------------------------------------------------------------------------
 # Dependencies
 # -----------------------------------------------------------------------------

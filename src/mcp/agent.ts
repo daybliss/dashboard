@@ -329,11 +329,23 @@ export class MahoragaMcpAgent extends McpAgent<Env> {
 
           const estimatedCost = input.notional ?? (input.qty ?? 0) * estimatedPrice;
 
-          const isCrypto = input.symbol.includes("/");
+          // Determine asset class via API lookup, with fallback to symbol pattern
+          let assetClass: "crypto" | "us_equity" = "us_equity";
+          try {
+            const asset = await alpaca.trading.getAsset(input.symbol);
+            if (asset?.class === "crypto") {
+              assetClass = "crypto";
+            }
+          } catch {
+            // Fallback: crypto symbols contain "/" (e.g., BTC/USD)
+            if (input.symbol.includes("/")) {
+              assetClass = "crypto";
+            }
+          }
 
           const preview = {
             symbol: input.symbol.toUpperCase(),
-            asset_class: (isCrypto ? "crypto" : "us_equity") as "crypto" | "us_equity",
+            asset_class: assetClass,
             side: input.side,
             qty: input.qty,
             notional: input.notional,
@@ -865,7 +877,13 @@ export class MahoragaMcpAgent extends McpAgent<Env> {
       { symbol: z.string().min(1) },
       async ({ symbol }) => {
         try {
-          const isCrypto = symbol.includes("/");
+          let isCrypto = symbol.includes("/");
+          if (!isCrypto) {
+            try {
+              const asset = await alpaca.trading.getAsset(symbol);
+              isCrypto = asset?.class === "crypto";
+            } catch { /* fallback to symbol pattern */ }
+          }
           const snapshot = isCrypto
             ? await alpaca.marketData.getCryptoSnapshot(symbol)
             : await alpaca.marketData.getSnapshot(symbol.toUpperCase());

@@ -3,12 +3,14 @@ export interface Env {
   CACHE: KVNamespace;
   ARTIFACTS: R2Bucket;
   SESSION: DurableObjectNamespace;
+  MAHORAGA_HARNESS?: DurableObjectNamespace;
 
   ALPACA_API_KEY: string;
   ALPACA_API_SECRET: string;
   ALPACA_PAPER?: string;
   OPENAI_API_KEY?: string;
   TWITTER_BEARER_TOKEN?: string;
+  DISCORD_WEBHOOK_URL?: string;
   KILL_SWITCH_SECRET: string;
 
   ENVIRONMENT: string;

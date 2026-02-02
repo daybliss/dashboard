@@ -126,6 +126,19 @@ export interface MarketDay {
   settlement_date: string;
 }
 
+export interface Asset {
+  id: string;
+  class: "us_equity" | "crypto";
+  exchange: string;
+  symbol: string;
+  name: string;
+  status: "active" | "inactive";
+  tradable: boolean;
+  marginable: boolean;
+  shortable: boolean;
+  fractionable: boolean;
+}
+
 export interface Bar {
   t: string;
   o: number;
@@ -181,6 +194,8 @@ export interface BrokerProvider {
 
   getClock(): Promise<MarketClock>;
   getCalendar(start: string, end: string): Promise<MarketDay[]>;
+  
+  getAsset(symbol: string): Promise<Asset | null>;
 }
 
 export interface MarketDataProvider {
@@ -191,6 +206,7 @@ export interface MarketDataProvider {
   getQuotes(symbols: string[]): Promise<Record<string, Quote>>;
   getSnapshot(symbol: string): Promise<Snapshot>;
   getSnapshots(symbols: string[]): Promise<Record<string, Snapshot>>;
+  getCryptoSnapshot(symbol: string): Promise<Snapshot>;
 }
 
 export interface OptionsChain {

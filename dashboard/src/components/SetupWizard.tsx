@@ -263,7 +263,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               Please restart the agent to apply the new settings:
             </p>
             <code className="block bg-hud-bg p-3 text-hud-primary text-sm rounded">
-              node agent-v1.mjs
+              curl localhost:8787/agent/disable && curl localhost:8787/agent/enable
             </code>
             <button 
               className="hud-button mt-4"

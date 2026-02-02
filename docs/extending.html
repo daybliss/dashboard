@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extending — Mahoraga</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link href="https://cdn.jsdelivr.net/npm/iosevka-webfont@14.0.0/iosevka.css" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #fdfcfa; --bg-subtle: #f5f3ef; --border: #e8e4dd;
+      --muted: #9a9488; --subtle: #6b655c; --text: #3d3a35; --bright: #1a1815;
+      --accent: #2563eb; --success: #16a34a;
+    }
+    html { font-size: 14px; }
+    body {
+      font-family: 'Iosevka Web', 'Iosevka', monospace;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: var(--accent); color: white; }
+    .container { max-width: 640px; margin: 0 auto; padding: 48px 24px 120px; }
+    
+    .nav { margin-bottom: 48px; }
+    .nav a {
+      color: var(--muted); text-decoration: none; font-size: 11px;
+      letter-spacing: 1px; text-transform: uppercase;
+      transition: color 0.15s;
+    }
+    .nav a:hover { color: var(--bright); }
+    
+    h1 {
+      font-size: 20px; font-weight: 600; color: var(--bright);
+      margin-bottom: 8px; letter-spacing: 1px;
+    }
+    .subtitle { color: var(--subtle); font-size: 13px; margin-bottom: 48px; }
+    
+    h2 {
+      font-size: 11px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 2px; color: var(--muted);
+      margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    h2:first-of-type { margin-top: 0; }
+    
+    h3 {
+      font-size: 13px; font-weight: 600; color: var(--bright);
+      margin: 24px 0 12px;
+    }
+    
+    p { margin-bottom: 16px; font-size: 13px; }
+    
+    pre {
+      background: var(--bg-subtle); border: 1px solid var(--border);
+      padding: 16px 20px; margin: 16px 0; overflow-x: auto;
+      font-size: 11px; line-height: 1.5;
+    }
+    code {
+      background: var(--bg-subtle); padding: 2px 6px; font-size: 12px;
+    }
+    pre code { background: none; padding: 0; }
+    
+    ul, ol { margin: 16px 0; padding-left: 24px; font-size: 13px; }
+    li { margin-bottom: 8px; }
+    
+    a { color: var(--accent); }
+    a:hover { text-decoration: none; }
+
+    .disclaimer {
+      background: #111;
+      color: #999;
+      text-align: center;
+      padding: 10px 16px;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    
+    .note {
+      background: #dbeafe; border: 1px solid #3b82f6;
+      padding: 12px 16px; font-size: 12px; color: #1e40af;
+      margin: 16px 0;
+    }
+    
+    .footer {
+      margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--muted);
+    }
+    .footer a { color: var(--subtle); text-decoration: none; margin-right: 24px; }
+    .footer a:hover { color: var(--bright); }
+  </style>
+</head>
+<body>
+  <div class="disclaimer">For educational purposes only. Trading involves substantial risk of loss. Not financial advice.</div>
+  <div class="container">
+    <nav class="nav">
+      <a href="./index.html">← Back to Mahoraga</a>
+    </nav>
+
+    <h1>Extending Mahoraga</h1>
+    <p class="subtitle">Add your own data sources and trading strategies.</p>
+
+    <p>See the <a href="./harness.html">Harness documentation</a> for the full customization guide. This page provides quick examples.</p>
+
+    <h2>Harness Structure</h2>
+    <p>The harness file (<code>src/durable-objects/mahoraga-harness.ts</code>) has clearly marked sections:</p>
+
+    <pre>
+┌─────────────────────────────────────────────────────────────────┐
+│  SECTION 4: DATA GATHERING (customize this)                     │
+│  - gatherStockTwits(), gatherReddit(), gatherCrypto()           │
+│  - Add your own: news APIs, SEC filings, etc.                   │
+├─────────────────────────────────────────────────────────────────┤
+│  SECTION 6: LLM RESEARCH (customize this)                       │
+│  - researchSignal(), analyzeSignalsWithLLM()                    │
+│  - Change prompts, add context, modify output format            │
+├─────────────────────────────────────────────────────────────────┤
+│  SECTION 7: TRADING LOGIC (customize this)                      │
+│  - runAnalyst(), executeBuy(), executeSell()                    │
+│  - Change entry/exit rules, position sizing, etc.               │
+└─────────────────────────────────────────────────────────────────┘
+    </pre>
+
+    <h2>Adding a Data Source</h2>
+    <p>Create a new class that returns signals in this format:</p>
+
+    <pre>
+{
+  symbol: "AAPL",
+  source: "my-source",
+  sentiment: 0.65,      // -1 to 1
+  volume: 42,           // message/mention count
+  bullish: 30,
+  bearish: 12,
+  reason: "My Source: 30B/12b (65%)"
+}
+    </pre>
+
+    <h3>Example: Custom Data Source</h3>
+    <pre>
+class CustomDataAgent {
+  async gatherSignals() {
+    const signals = [];
+    
+    // Fetch from your data source
+    const res = await fetch("https://your-api.com/signals");
+    const data = await res.json();
+    
+    for (const item of data.items) {
+      const sentiment = this.analyzeSentiment(item);
+      
+      signals.push({
+        symbol: item.ticker,
+        source: "custom",
+        sentiment,
+        volume: item.mentions,
+        bullish: sentiment > 0 ? 1 : 0,
+        bearish: sentiment < 0 ? 1 : 0,
+        reason: `Custom: ${item.summary.slice(0, 50)}...`
+      });
+    }
+    
+    return this.aggregateSignals(signals);
+  }
+  
+  analyzeSentiment(item) {
+    // Your sentiment logic here
+    // Return value between -1 and 1
+    return item.score || 0;
+  }
+  
+  aggregateSignals(signals) {
+    // Group by symbol and average sentiment
+    const grouped = {};
+    for (const s of signals) {
+      if (!grouped[s.symbol]) grouped[s.symbol] = [];
+      grouped[s.symbol].push(s);
+    }
+    
+    return Object.entries(grouped).map(([symbol, arr]) => ({
+      symbol,
+      source: "custom",
+      sentiment: arr.reduce((a, b) => a + b.sentiment, 0) / arr.length,
+      volume: arr.reduce((a, b) => a + b.volume, 0),
+      bullish: arr.filter(s => s.sentiment > 0).length,
+      bearish: arr.filter(s => s.sentiment < 0).length,
+      reason: `Custom: ${arr.length} signals`
+    }));
+  }
+}
+    </pre>
+
+    <h2>Combining Data Sources</h2>
+    <p>Merge signals from multiple sources for confirmation:</p>
+
+    <pre>
+async gatherAllSignals() {
+  const [source1, source2] = await Promise.all([
+    this.source1Agent.gatherSignals(),
+    this.source2Agent.gatherSignals()
+  ]);
+  
+  // Merge by symbol
+  const merged = {};
+  for (const s of [...source1, ...source2]) {
+    if (!merged[s.symbol]) {
+      merged[s.symbol] = { ...s, sources: [s.source] };
+    } else {
+      // Average sentiment, sum volume
+      merged[s.symbol].sentiment = 
+        (merged[s.symbol].sentiment + s.sentiment) / 2;
+      merged[s.symbol].volume += s.volume;
+      merged[s.symbol].sources.push(s.source);
+    }
+  }
+  
+  return Object.values(merged);
+}
+    </pre>
+
+    <h2>Modifying Trading Logic</h2>
+    <p>Edit the <code>runTradingLogic()</code> method:</p>
+
+    <pre>
+async runTradingLogic() {
+  // Get current state
+  const [account, positions] = await Promise.all([
+    this.mcp.call("accounts-get"),
+    this.mcp.call("positions-list")
+  ]);
+  
+  // Your custom exit logic
+  for (const pos of positions) {
+    const plPct = pos.unrealized_plpc * 100;
+    
+    // Example: Trailing stop
+    if (plPct > 5 && plPct < this.peakPnL[pos.symbol] - 2) {
+      await this.sell(pos.symbol, "Trailing stop");
+    }
+    
+    // Example: Time-based exit
+    const holdHours = (Date.now() - this.entryTime[pos.symbol]) / 3600000;
+    if (holdHours > 24 && plPct < 2) {
+      await this.sell(pos.symbol, "Stale position");
+    }
+  }
+  
+  // Your custom entry logic
+  const candidates = this.signals
+    .filter(s => s.sources.length >= 2)  // Multi-source confirmation
+    .filter(s => s.sentiment >= 0.5)
+    .sort((a, b) => b.sentiment - a.sentiment);
+  
+  // ... execute buys
+}
+    </pre>
+
+    <h2>Using Technical Indicators</h2>
+    <p>The MCP server provides technical analysis:</p>
+
+    <pre>
+const technicals = await this.mcp.call("technicals-get", {
+  symbol: "AAPL",
+  indicators: ["rsi", "macd", "sma_20", "sma_50"]
+});
+
+// technicals = {
+//   rsi: 65.4,
+//   macd: { value: 1.2, signal: 0.8, histogram: 0.4 },
+//   sma_20: 175.50,
+//   sma_50: 172.30
+// }
+
+// Example: Only buy if RSI < 70 and price above SMA
+if (technicals.rsi < 70 && price > technicals.sma_20) {
+  await this.buy(symbol);
+}
+    </pre>
+
+    <h2>Ideas for Extension</h2>
+    <ul>
+      <li><strong>News APIs</strong> — Benzinga, Polygon, Alpha Vantage</li>
+      <li><strong>SEC Filings</strong> — Insider trading, 13F filings</li>
+      <li><strong>Options Flow</strong> — Unusual options activity</li>
+      <li><strong>Earnings</strong> — Pre/post earnings strategies</li>
+      <li><strong>Sector Rotation</strong> — Track money flow between sectors</li>
+      <li><strong>Analyst Ratings</strong> — Track upgrades/downgrades</li>
+    </ul>
+
+    <div class="note">
+      <strong>Tip:</strong> Start simple. Add one data source, test it thoroughly, then add more complexity.
+    </div>
+
+    <div class="footer">
+      <a href="./index.html">Home</a>
+      <a href="./harness.html">Harness</a>
+      <a href="./architecture.html">Architecture</a>
+      <a href="https://github.com/ygwyg/MAHORAGA">GitHub</a>
+      <a href="https://discord.gg/Ys8KpsW5NN">Discord</a>
+    </div>
+  </div>
+</body>
+</html>
