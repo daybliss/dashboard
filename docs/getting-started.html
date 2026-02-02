@@ -127,11 +127,20 @@ cd dashboard && npm install && cd ..</pre>
 ALPACA_API_SECRET=your_alpaca_secret
 ALPACA_PAPER=true
 OPENAI_API_KEY=your_openai_key
-KILL_SWITCH_SECRET=any_random_string_here</pre>
+MAHORAGA_API_TOKEN=generate_a_secure_random_token
+KILL_SWITCH_SECRET=another_secure_random_token</pre>
+
+    <p>Generate secure tokens with: <code>openssl rand -base64 48</code></p>
 
     <div class="warning">
       <strong>Important:</strong> Always start with <code>ALPACA_PAPER=true</code> until you understand how the system works.
     </div>
+
+    <table>
+      <tr><th>Secret</th><th>Purpose</th></tr>
+      <tr><td><code>MAHORAGA_API_TOKEN</code></td><td>Required for all API access (dashboard, curl commands)</td></tr>
+      <tr><td><code>KILL_SWITCH_SECRET</code></td><td>Emergency shutdown + approval token signing</td></tr>
+    </table>
 
     <h2>3. Get Your API Keys</h2>
     
@@ -160,15 +169,26 @@ KILL_SWITCH_SECRET=any_random_string_here</pre>
     <p>The server runs at <code>http://localhost:8787</code></p>
 
     <h2>5. Enable the Trading Agent</h2>
-    <p>The agent runs as a Durable Object. Enable it:</p>
-    <pre>curl http://localhost:8787/agent/enable</pre>
+    <p>The agent runs as a Durable Object. All API endpoints require authentication:</p>
+    <pre># Set your token as an environment variable
+export MAHORAGA_TOKEN="your_token_from_dev_vars"
+
+# Enable the agent
+curl -H "Authorization: Bearer $MAHORAGA_TOKEN" \
+  http://localhost:8787/agent/enable</pre>
     <p>The agent will start monitoring sentiment sources and making trading decisions.</p>
 
     <h2>6. Open the Dashboard (Optional)</h2>
     <p>In another terminal:</p>
     <pre>cd dashboard
 npm run dev</pre>
-    <p>Open <code>http://localhost:5173</code> in your browser to monitor:</p>
+    <p>Open <code>http://localhost:5173</code> in your browser.</p>
+    
+    <div class="note">
+      <strong>First time setup:</strong> Click the Settings icon and enter your <code>MAHORAGA_API_TOKEN</code> to authenticate.
+    </div>
+    
+    <p>The dashboard shows:</p>
     <ul>
       <li>Account balance and positions</li>
       <li>Current signals and research</li>

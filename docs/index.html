@@ -479,8 +479,8 @@
         </div>
         <div class="step">
           <span class="step-num">3</span>
-          <span class="step-cmd"><span class="dim"># edit .dev.vars with your API keys</span></span>
-          <span class="step-desc">Alpaca + OpenAI</span>
+          <span class="step-cmd"><span class="dim"># edit .dev.vars with API keys + tokens</span></span>
+          <span class="step-desc">see getting-started</span>
         </div>
         <div class="step">
           <span class="step-num">4</span>
@@ -489,7 +489,7 @@
         </div>
         <div class="step">
           <span class="step-num">5</span>
-          <span class="step-cmd">curl localhost:8787/agent/enable</span>
+          <span class="step-cmd">curl -H "Authorization: Bearer $TOKEN" ...</span>
           <span class="step-desc">enable the agent</span>
         </div>
         <div class="step">
@@ -526,8 +526,8 @@
           <div class="feature-desc">Trade BTC, ETH, SOL 24/7 with momentum-based signals. No market hours restrictions.</div>
         </div>
         <div class="feature">
-          <div class="feature-title">Risk Management</div>
-          <div class="feature-desc">Stop-loss, take-profit, position limits, staleness detection, options support, and kill switch.</div>
+          <div class="feature-title">Secure by Default</div>
+          <div class="feature-desc">All API endpoints require Bearer token auth. Optional Cloudflare Access for SSO/email verification. Separate kill switch secret.</div>
         </div>
         <div class="feature">
           <div class="feature-title">Real-Time Dashboard</div>
