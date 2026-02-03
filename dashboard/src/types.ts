@@ -99,6 +99,9 @@ export interface Config {
   crypto_max_position_value?: number
   crypto_take_profit_pct?: number
   crypto_stop_loss_pct?: number
+
+  // Custom ticker blacklist (insider trading restrictions, etc.)
+  ticker_blacklist?: string[]
 }
 
 export interface SignalResearch {

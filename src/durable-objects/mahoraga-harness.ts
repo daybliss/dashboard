@@ -102,6 +102,9 @@ interface AgentConfig {
   crypto_max_position_value: number;
   crypto_take_profit_pct: number;
   crypto_stop_loss_pct: number;
+
+  // Custom ticker blacklist - user-defined symbols to never trade (e.g., insider trading restrictions)
+  ticker_blacklist: string[];
 }
 
 // [CUSTOMIZABLE] Add fields here when you add new data sources
@@ -293,6 +296,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   crypto_max_position_value: 1000,
   crypto_take_profit_pct: 10,
   crypto_stop_loss_pct: 5,
+  ticker_blacklist: [],
 };
 
 const DEFAULT_STATE: AgentState = {
@@ -315,12 +319,25 @@ const DEFAULT_STATE: AgentState = {
   enabled: false,
 };
 
-// Blacklist for ticker extraction
+// Blacklist for ticker extraction - common English words and trading slang
 const TICKER_BLACKLIST = new Set([
-  "CEO", "CFO", "IPO", "EPS", "GDP", "SEC", "FDA", "USA", "USD", "ETF",
-  "ATH", "ATL", "IMO", "FOMO", "YOLO", "DD", "TA", "THE", "AND", "FOR",
-  "ARE", "BUT", "NOT", "YOU", "ALL", "CAN", "HER", "WAS", "ONE", "OUR",
-  "WSB", "RIP", "LOL", "OMG", "WTF", "FUD", "HODL", "APE", "GME", "AMC",
+  // Finance/trading terms
+  "CEO", "CFO", "COO", "CTO", "IPO", "EPS", "GDP", "SEC", "FDA", "USA", "USD", "ETF", "NYSE", "API",
+  "ATH", "ATL", "IMO", "FOMO", "YOLO", "DD", "TA", "FA", "ROI", "PE", "PB", "PS", "EV", "DCF",
+  "WSB", "RIP", "LOL", "OMG", "WTF", "FUD", "HODL", "APE", "MOASS", "DRS", "NFT", "DAO",
+  // Common English words (2-4 letters that look like tickers)
+  "THE", "AND", "FOR", "ARE", "BUT", "NOT", "YOU", "ALL", "CAN", "HER", "WAS", "ONE", "OUR",
+  "OUT", "DAY", "HAD", "HAS", "HIS", "HOW", "ITS", "LET", "MAY", "NEW", "NOW", "OLD", "SEE",
+  "WAY", "WHO", "BOY", "DID", "GET", "HIM", "HIT", "LOW", "MAN", "RUN", "SAY", "SHE", "TOO",
+  "USE", "DAD", "MOM", "GOT", "HAS", "HAD", "LET", "PUT", "SAW", "SAT", "SET", "SIT", "TRY",
+  "THAT", "THIS", "WITH", "HAVE", "FROM", "THEY", "BEEN", "CALL", "WILL", "EACH", "MAKE",
+  "LIKE", "TIME", "JUST", "KNOW", "TAKE", "COME", "MADE", "FIND", "MORE", "LONG", "HERE",
+  "MANY", "SOME", "THAN", "THEM", "THEN", "ONLY", "OVER", "SUCH", "YEAR", "INTO", "MOST",
+  "ALSO", "BACK", "GOOD", "WELL", "EVEN", "WANT", "GIVE", "MUCH", "WORK", "FIRST", "AFTER",
+  "AS", "AT", "BE", "BY", "DO", "GO", "IF", "IN", "IS", "IT", "MY", "NO", "OF", "ON", "OR",
+  "SO", "TO", "UP", "US", "WE", "AN", "AM", "AH", "OH", "OK", "HI", "YA", "YO",
+  // More trading slang
+  "BULL", "BEAR", "CALL", "PUTS", "HOLD", "SELL", "MOON", "PUMP", "DUMP", "BAGS", "TEND",
 ]);
 
 // ============================================================================
@@ -398,13 +415,14 @@ function getFlairMultiplier(flair: string | null | undefined): number {
  * Current: $SYMBOL or SYMBOL followed by trading keywords
  * Add patterns for your data sources (e.g., cashtags, mentions)
  */
-function extractTickers(text: string): string[] {
+function extractTickers(text: string, customBlacklist: string[] = []): string[] {
   const matches = new Set<string>();
+  const customSet = new Set(customBlacklist.map(t => t.toUpperCase()));
   const regex = /\$([A-Z]{1,5})\b|\b([A-Z]{2,5})\b(?=\s+(?:calls?|puts?|stock|shares?|moon|rocket|yolo|buy|sell|long|short))/gi;
   let match;
   while ((match = regex.exec(text)) !== null) {
     const ticker = (match[1] || match[2] || "").toUpperCase();
-    if (ticker.length >= 2 && ticker.length <= 5 && !TICKER_BLACKLIST.has(ticker)) {
+    if (ticker.length >= 2 && ticker.length <= 5 && !TICKER_BLACKLIST.has(ticker) && !customSet.has(ticker)) {
       matches.add(ticker);
     }
   }
@@ -897,7 +915,7 @@ export class MahoragaHarness extends DurableObject<Env> {
 
         for (const post of posts) {
           const text = `${post.title || ""} ${post.selftext || ""}`;
-          const tickers = extractTickers(text);
+          const tickers = extractTickers(text, this.state.config.ticker_blacklist);
           const rawSentiment = detectSentiment(text);
 
           const timeDecay = calculateTimeDecay(post.created_utc || Date.now() / 1000);
