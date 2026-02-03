@@ -118,6 +118,7 @@ interface Signal {
   freshness: number;        // Time decay factor (0-1)
   source_weight: number;    // How much to trust this source
   reason: string;           // Human-readable reason
+  timestamp: number;        // Unix timestamp (ms) when signal was gathered
   upvotes?: number;
   comments?: number;
   quality_score?: number;
@@ -819,7 +820,18 @@ export class MahoragaHarness extends DurableObject<Env> {
       this.gatherCrypto(),
     ]);
 
-    this.state.signalCache = [...stocktwitsSignals, ...redditSignals, ...cryptoSignals];
+    const allSignals = [...stocktwitsSignals, ...redditSignals, ...cryptoSignals];
+
+    const MAX_SIGNALS = 200;
+    const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    const freshSignals = allSignals
+      .filter(s => now - s.timestamp < MAX_AGE_MS)
+      .sort((a, b) => Math.abs(b.sentiment) - Math.abs(a.sentiment))
+      .slice(0, MAX_SIGNALS);
+
+    this.state.signalCache = freshSignals;
 
     this.log("System", "data_gathered", {
       stocktwits: stocktwitsSignals.length,
@@ -880,6 +892,7 @@ export class MahoragaHarness extends DurableObject<Env> {
               freshness: avgFreshness,
               source_weight: sourceWeight,
               reason: `StockTwits: ${Math.round(bullish)}B/${Math.round(bearish)}b (${(score * 100).toFixed(0)}%) [fresh:${(avgFreshness * 100).toFixed(0)}%]`,
+              timestamp: Date.now(),
             });
           }
 
@@ -997,6 +1010,7 @@ export class MahoragaHarness extends DurableObject<Env> {
           subreddits: Array.from(data.sources),
           source_weight: avgQuality,
           reason: `Reddit(${Array.from(data.sources).join(",")}): ${data.mentions} mentions, ${data.upvotes} upvotes, quality:${(avgQuality * 100).toFixed(0)}%`,
+          timestamp: Date.now(),
         });
       }
     }
@@ -1043,6 +1057,7 @@ export class MahoragaHarness extends DurableObject<Env> {
           isCrypto: true,
           momentum,
           price,
+          timestamp: Date.now(),
         });
 
         await this.sleep(200);
