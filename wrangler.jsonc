@@ -44,14 +44,14 @@
 		{
 			"binding": "DB",
 			"database_name": "mahoraga-db",
-			"database_id": "c5360d02-1890-45b8-bcb1-ac753cc34ae7",
+			"database_id": "0897594a-1f52-4ec4-b2ca-0140565600ea",
 			"migrations_dir": "migrations"
 		}
 	],
 	"kv_namespaces": [
 		{
 			"binding": "CACHE",
-			"id": "11f44d9c731d47959e0058dce695aa4f"
+			"id": "274b918539f24b3fb8de3e248a8bc6e7"
 		}
 	],
 	"r2_buckets": [
