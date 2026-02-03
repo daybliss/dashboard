@@ -330,6 +330,27 @@ const TICKER_BLACKLIST = new Set([
 // Modify these to change how posts are scored and filtered.
 // ============================================================================
 
+function normalizeCryptoSymbol(symbol: string): string {
+  if (symbol.includes("/")) {
+    return symbol.toUpperCase();
+  }
+  const match = symbol.toUpperCase().match(/^([A-Z]{2,5})(USD|USDT|USDC)$/);
+  if (match) {
+    return `${match[1]}/${match[2]}`;
+  }
+  return symbol;
+}
+
+function isCryptoSymbol(symbol: string, cryptoSymbols: string[]): boolean {
+  const normalizedInput = normalizeCryptoSymbol(symbol);
+  for (const configSymbol of cryptoSymbols) {
+    if (normalizeCryptoSymbol(configSymbol) === normalizedInput) {
+      return true;
+    }
+  }
+  return /^[A-Z]{2,5}\/(USD|USDT|USDC)$/.test(normalizedInput);
+}
+
 /**
  * [TUNE] Time decay - how quickly old posts lose weight
  * Uses exponential decay with half-life from SOURCE_CONFIG.decayHalfLifeMinutes
@@ -1466,10 +1487,18 @@ JSON response:
 
     try {
       const alpaca = createAlpacaProviders(this.env);
-      const quote = await alpaca.marketData.getQuote(symbol).catch(() => null);
-      const price = quote?.ask_price || quote?.bid_price || 0;
+      const isCrypto = isCryptoSymbol(symbol, this.state.config.crypto_symbols || []);
+      let price = 0;
+      if (isCrypto) {
+        const normalized = normalizeCryptoSymbol(symbol);
+        const snapshot = await alpaca.marketData.getCryptoSnapshot(normalized).catch(() => null);
+        price = snapshot?.latest_quote?.ask_price || snapshot?.latest_quote?.bid_price || snapshot?.latest_trade?.price || 0;
+      } else {
+        const quote = await alpaca.marketData.getQuote(symbol).catch(() => null);
+        price = quote?.ask_price || quote?.bid_price || 0;
+      }
 
-      const prompt = `Should we BUY this stock based on social sentiment and fundamentals?
+      const prompt = `Should we BUY this ${isCrypto ? "crypto" : "stock"} based on social sentiment and fundamentals?
 
 SYMBOL: ${symbol}
 SENTIMENT: ${(sentimentScore * 100).toFixed(0)}% bullish (sources: ${sources.join(", ")})
@@ -1967,15 +1996,19 @@ Response format:
     }
 
     try {
+      const isCrypto = isCryptoSymbol(symbol, this.state.config.crypto_symbols || []);
+      const orderSymbol = isCrypto ? normalizeCryptoSymbol(symbol) : symbol;
+      const timeInForce = isCrypto ? "gtc" : "day";
+
       const order = await alpaca.trading.createOrder({
-        symbol,
+        symbol: orderSymbol,
         notional: Math.round(positionSize * 100) / 100,
         side: "buy",
         type: "market",
-        time_in_force: "day",
+        time_in_force: timeInForce,
       });
 
-      this.log("Executor", "buy_executed", { symbol, status: order.status, size: positionSize });
+      this.log("Executor", "buy_executed", { symbol: orderSymbol, isCrypto, status: order.status, size: positionSize });
       return true;
     } catch (error) {
       this.log("Executor", "buy_failed", { symbol, error: String(error) });
