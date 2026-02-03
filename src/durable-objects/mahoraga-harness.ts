@@ -80,6 +80,7 @@ interface AgentConfig {
   llm_model: string;               // [TUNE] Model for quick research (gpt-4o-mini)
   llm_analyst_model: string;       // [TUNE] Model for deep analysis (gpt-4o)
   llm_max_tokens: number;
+  llm_min_hold_minutes: number;    // [TUNE] Min minutes before LLM can recommend sell (default: 30)
 
   // Options trading - trade options instead of shares for high-conviction plays
   options_enabled: boolean;        // [TOGGLE] Enable/disable options trading
@@ -279,6 +280,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   llm_model: "gpt-4o-mini",
   llm_analyst_model: "gpt-4o",
   llm_max_tokens: 500,
+  llm_min_hold_minutes: 30,
   options_enabled: false,
   options_min_confidence: 0.8,
   options_max_pct_per_trade: 0.02,
@@ -1900,9 +1902,12 @@ ACCOUNT STATUS:
 - Current Positions: ${positions.length}/${this.state.config.max_positions}
 
 CURRENT POSITIONS:
-${positions.length === 0 ? "None" : positions.map(p =>
-      `- ${p.symbol}: ${p.qty} shares, P&L: $${p.unrealized_pl.toFixed(2)} (${((p.unrealized_pl / (p.market_value - p.unrealized_pl)) * 100).toFixed(1)}%)`
-    ).join("\n")}
+${positions.length === 0 ? "None" : positions.map(p => {
+      const entry = this.state.positionEntries[p.symbol];
+      const holdMinutes = entry ? Math.round((Date.now() - entry.entry_time) / (1000 * 60)) : 0;
+      const holdStr = holdMinutes >= 60 ? `${(holdMinutes / 60).toFixed(1)}h` : `${holdMinutes}m`;
+      return `- ${p.symbol}: ${p.qty} shares, P&L: $${p.unrealized_pl.toFixed(2)} (${((p.unrealized_pl / (p.market_value - p.unrealized_pl)) * 100).toFixed(1)}%), held ${holdStr}`;
+    }).join("\n")}
 
 TOP SENTIMENT CANDIDATES:
 ${candidates.map(c =>
@@ -1919,6 +1924,7 @@ TRADING RULES:
 - Take profit target: ${this.state.config.take_profit_pct}%
 - Stop loss: ${this.state.config.stop_loss_pct}%
 - Min confidence to trade: ${this.state.config.min_analyst_confidence}
+- Min hold time before selling: ${this.state.config.llm_min_hold_minutes ?? 30} minutes
 
 Analyze and provide BUY/SELL/HOLD recommendations:`;
 
@@ -1932,7 +1938,9 @@ Analyze and provide BUY/SELL/HOLD recommendations:`;
 
 Rules:
 - Only recommend BUY for symbols with strong conviction from multiple data points
-- Recommend SELL for positions with deteriorating sentiment or hitting targets
+- Recommend SELL only for positions that have been held long enough AND show deteriorating sentiment or major red flags
+- Give positions time to develop - avoid selling too early just because gains are small
+- Positions held less than 1-2 hours should generally be given more time unless hitting stop loss
 - Consider the QUALITY of sentiment, not just quantity
 - Output valid JSON only
 
@@ -2107,6 +2115,20 @@ Response format:
         if (rec.confidence < this.state.config.min_analyst_confidence) continue;
 
         if (rec.action === "SELL" && heldSymbols.has(rec.symbol)) {
+          const entry = this.state.positionEntries[rec.symbol];
+          const holdMinutes = entry ? (Date.now() - entry.entry_time) / (1000 * 60) : 0;
+          const minHoldMinutes = this.state.config.llm_min_hold_minutes ?? 30;
+          
+          if (holdMinutes < minHoldMinutes) {
+            this.log("Analyst", "llm_sell_blocked", { 
+              symbol: rec.symbol, 
+              holdMinutes: Math.round(holdMinutes),
+              minRequired: minHoldMinutes,
+              reason: "Position held less than minimum hold time"
+            });
+            continue;
+          }
+          
           const result = await this.executeSell(alpaca, rec.symbol, `LLM recommendation: ${rec.reasoning}`);
           if (result) {
             heldSymbols.delete(rec.symbol);
