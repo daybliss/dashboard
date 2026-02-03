@@ -716,6 +716,14 @@ export class MahoragaHarness extends DurableObject<Env> {
         alpaca.trading.getPositions(),
         alpaca.trading.getClock(),
       ]);
+
+      for (const pos of positions || []) {
+        const entry = this.state.positionEntries[pos.symbol];
+        if (entry && entry.entry_price === 0 && pos.avg_entry_price) {
+          entry.entry_price = pos.avg_entry_price;
+          entry.peak_price = Math.max(entry.peak_price, pos.current_price);
+        }
+      }
     } catch (e) {
       // Ignore - will return null
     }
