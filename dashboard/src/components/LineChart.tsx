@@ -1,4 +1,5 @@
 import { motion } from 'motion/react'
+import { useState, useRef } from 'react'
 
 type ChartVariant = 'cyan' | 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'primary'
 
@@ -6,6 +7,12 @@ interface LineChartSeries {
   label: string
   data: number[]
   variant?: ChartVariant
+}
+
+interface ChartMarker {
+  index: number
+  label: string
+  color?: string
 }
 
 interface LineChartProps {
@@ -18,6 +25,8 @@ interface LineChartProps {
   showArea?: boolean
   animated?: boolean
   formatValue?: (value: number) => string
+  markers?: ChartMarker[]
+  onHover?: (index: number | null, value: number | null) => void
 }
 
 const variantColors: Record<ChartVariant, { stroke: string; fill: string }> = {
@@ -40,18 +49,20 @@ export function LineChart({
   showArea = true,
   animated = true,
   formatValue,
+  markers,
 }: LineChartProps) {
-  // Wide viewBox for better aspect ratio in typical containers
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
   const viewBoxWidth = 800
   const viewBoxHeight = height || 200
-  const padding = { top: 16, right: 16, bottom: 28, left: 56 }
+  const padding = { top: 16, right: 16, bottom: 24, left: 48 }
   const chartWidth = viewBoxWidth - padding.left - padding.right
   const chartHeight = viewBoxHeight - padding.top - padding.bottom
 
   const allValues = series.flatMap((s) => s.data)
   const dataMin = Math.min(...allValues)
   const dataMax = Math.max(...allValues)
-  // Add 5% padding to the range for visual breathing room
   const range = dataMax - dataMin || 1
   const minValue = dataMin - range * 0.05
   const maxValue = dataMax + range * 0.05
@@ -61,6 +72,7 @@ export function LineChart({
 
   const getX = (index: number) => padding.left + (index / (maxPoints - 1 || 1)) * chartWidth
   const getY = (value: number) => padding.top + chartHeight - ((value - minValue) / valueRange) * chartHeight
+  const getIndexFromX = (x: number) => Math.round(((x - padding.left) / chartWidth) * (maxPoints - 1))
 
   const gridLines = 4
   const gridValues = Array.from({ length: gridLines }, (_, i) => minValue + (valueRange / (gridLines - 1)) * i)
@@ -70,13 +82,34 @@ export function LineChart({
     return v.toFixed(0)
   })
 
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return
+    const rect = svgRef.current.getBoundingClientRect()
+    const scaleX = viewBoxWidth / rect.width
+    const x = (e.clientX - rect.left) * scaleX
+    const index = getIndexFromX(x)
+    if (index >= 0 && index < maxPoints) {
+      setHoverIndex(index)
+    } else {
+      setHoverIndex(null)
+    }
+  }
+
+  const handleMouseLeave = () => setHoverIndex(null)
+
+  const hoverValue = hoverIndex !== null ? series[0]?.data[hoverIndex] : null
+  const hoverLabel = hoverIndex !== null && labels ? labels[hoverIndex] : null
+
   return (
     <svg
+      ref={svgRef}
       width="100%"
       height="100%"
       viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
       preserveAspectRatio="xMidYMid meet"
       className="block"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
     >
       {showGrid && (
         <g>
@@ -93,13 +126,13 @@ export function LineChart({
                 opacity={0.3}
               />
               <text
-                x={padding.left - 8}
+                x={padding.left - 6}
                 y={getY(value)}
                 textAnchor="end"
                 dominantBaseline="middle"
                 fill="currentColor"
                 className="text-hud-text-dim"
-                fontSize={12}
+                fontSize={9}
               >
                 {formatLabel(value)}
               </text>
@@ -110,17 +143,17 @@ export function LineChart({
 
       {labels && (
         <g>
-          {labels.filter((_, i) => i % Math.ceil(labels.length / 5) === 0).map((label, i) => {
-            const actualIndex = i * Math.ceil(labels.length / 5)
+          {labels.filter((_, i) => i % Math.ceil(labels.length / 6) === 0).map((label, i) => {
+            const actualIndex = i * Math.ceil(labels.length / 6)
             return (
               <text
                 key={i}
                 x={getX(actualIndex)}
-                y={viewBoxHeight - 8}
+                y={viewBoxHeight - 6}
                 textAnchor="middle"
                 fill="currentColor"
                 className="text-hud-text-dim"
-                fontSize={12}
+                fontSize={9}
               >
                 {label}
               </text>
@@ -128,6 +161,30 @@ export function LineChart({
           })}
         </g>
       )}
+
+      {markers && markers.map((marker, i) => (
+        <g key={`marker-${i}`}>
+          <line
+            x1={getX(marker.index)}
+            y1={padding.top}
+            x2={getX(marker.index)}
+            y2={padding.top + chartHeight}
+            stroke={marker.color || 'var(--color-hud-text-dim)'}
+            strokeWidth={1}
+            strokeDasharray="4,4"
+            opacity={0.4}
+          />
+          <text
+            x={getX(marker.index)}
+            y={padding.top - 4}
+            textAnchor="middle"
+            fill={marker.color || 'var(--color-hud-text-dim)'}
+            fontSize={8}
+          >
+            {marker.label}
+          </text>
+        </g>
+      ))}
 
       {series.map((s, seriesIndex) => {
         const colors = variantColors[s.variant ?? variant]
@@ -188,6 +245,48 @@ export function LineChart({
           </g>
         )
       })}
+
+      {hoverIndex !== null && hoverValue !== null && (
+        <g>
+          <line
+            x1={getX(hoverIndex)}
+            y1={padding.top}
+            x2={getX(hoverIndex)}
+            y2={padding.top + chartHeight}
+            stroke="var(--color-hud-text-dim)"
+            strokeWidth={1}
+            opacity={0.6}
+          />
+          <circle
+            cx={getX(hoverIndex)}
+            cy={getY(hoverValue)}
+            r={4}
+            fill="var(--color-hud-bg)"
+            stroke={variantColors[series[0]?.variant ?? variant].stroke}
+            strokeWidth={2}
+          />
+          <g transform={`translate(${Math.min(getX(hoverIndex) + 8, viewBoxWidth - 90)}, ${Math.max(getY(hoverValue) - 30, padding.top)})`}>
+            <rect
+              x={0}
+              y={0}
+              width={80}
+              height={36}
+              fill="var(--color-hud-bg)"
+              stroke="var(--color-hud-line)"
+              strokeWidth={1}
+              rx={2}
+            />
+            <text x={8} y={14} fill="var(--color-hud-text)" fontSize={10} fontWeight="500">
+              {formatLabel(hoverValue)}
+            </text>
+            {hoverLabel && (
+              <text x={8} y={28} fill="var(--color-hud-text-dim)" fontSize={9}>
+                {hoverLabel}
+              </text>
+            )}
+          </g>
+        </g>
+      )}
     </svg>
   )
 }

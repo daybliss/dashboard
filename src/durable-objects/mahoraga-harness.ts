@@ -879,12 +879,17 @@ export class MahoragaHarness extends DurableObject<Env> {
     const alpaca = createAlpacaProviders(this.env);
     const period = url.searchParams.get("period") || "1M";
     const timeframe = url.searchParams.get("timeframe") || "1D";
+    const intradayReporting = url.searchParams.get("intraday_reporting") as
+      | "market_hours"
+      | "extended_hours"
+      | "continuous"
+      | null;
 
     try {
       const history = await alpaca.trading.getPortfolioHistory({
         period,
         timeframe,
-        intraday_reporting: "extended_hours",
+        intraday_reporting: intradayReporting || "extended_hours",
       });
 
       const snapshots = history.timestamp.map((ts, i) => ({

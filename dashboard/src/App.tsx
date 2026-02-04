@@ -79,10 +79,11 @@ function getSentimentColor(score: number): string {
   return 'text-hud-warning'
 }
 
-async function fetchPortfolioHistory(period: string = '1M'): Promise<PortfolioSnapshot[]> {
+async function fetchPortfolioHistory(period: string = '1D'): Promise<PortfolioSnapshot[]> {
   try {
-    const timeframe = period === '1D' ? '1H' : '1D'
-    const res = await authFetch(`${API_BASE}/history?period=${period}&timeframe=${timeframe}`)
+    const timeframe = period === '1D' ? '15Min' : '1D'
+    const intraday = period === '1D' ? '&intraday_reporting=extended_hours' : ''
+    const res = await authFetch(`${API_BASE}/history?period=${period}&timeframe=${timeframe}${intraday}`)
     const data = await res.json()
     if (data.ok && data.data?.snapshots) {
       return data.data.snapshots
@@ -117,7 +118,7 @@ export default function App() {
   const [setupChecked, setSetupChecked] = useState(false)
   const [time, setTime] = useState(new Date())
   const [portfolioHistory, setPortfolioHistory] = useState<PortfolioSnapshot[]>([])
-  const [portfolioPeriod, setPortfolioPeriod] = useState<'1D' | '1W' | '1M'>('1M')
+  const [portfolioPeriod, setPortfolioPeriod] = useState<'1D' | '1W' | '1M'>('1D')
 
   useEffect(() => {
     const checkSetup = async () => {
@@ -229,6 +230,27 @@ export default function App() {
       }
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     })
+  }, [portfolioHistory, portfolioPeriod])
+
+  const marketMarkers = useMemo(() => {
+    if (portfolioPeriod !== '1D' || portfolioHistory.length === 0) return undefined
+    
+    const markers: { index: number; label: string; color?: string }[] = []
+    
+    portfolioHistory.forEach((s, i) => {
+      const date = new Date(s.timestamp)
+      const hours = date.getHours()
+      const minutes = date.getMinutes()
+      const timeStr = `${hours}:${minutes.toString().padStart(2, '0')}`
+      
+      if (timeStr === '9:30') {
+        markers.push({ index: i, label: 'OPEN', color: 'var(--color-hud-success)' })
+      } else if (timeStr === '16:0' || timeStr === '16:00') {
+        markers.push({ index: i, label: 'CLOSE', color: 'var(--color-hud-error)' })
+      }
+    })
+    
+    return markers.length > 0 ? markers : undefined
   }, [portfolioHistory, portfolioPeriod])
 
   // Normalize position price histories to % change for stacked comparison view
@@ -502,6 +524,7 @@ export default function App() {
                     showGrid={true}
                     showDots={false}
                     formatValue={(v) => `$${(v / 1000).toFixed(1)}k`}
+                    markers={marketMarkers}
                   />
                 </div>
               ) : (
