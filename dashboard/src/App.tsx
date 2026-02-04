@@ -79,32 +79,17 @@ function getSentimentColor(score: number): string {
   return 'text-hud-warning'
 }
 
-// Generate mock portfolio history for demo (will be replaced by real data from API)
-function generateMockPortfolioHistory(equity: number, points: number = 24): PortfolioSnapshot[] {
-  const history: PortfolioSnapshot[] = []
-  const now = Date.now()
-  const interval = 3600000 // 1 hour in ms
-  let value = equity * 0.95 // Start slightly lower
-  
-  for (let i = points; i >= 0; i--) {
-    const change = (Math.random() - 0.45) * equity * 0.005 // Small random walk with slight upward bias
-    value = Math.max(value + change, equity * 0.8)
-    const pl = value - equity * 0.95
-    history.push({
-      timestamp: now - i * interval,
-      equity: value,
-      pl,
-      pl_pct: (pl / (equity * 0.95)) * 100,
-    })
+async function fetchPortfolioHistory(period: string = '1M'): Promise<PortfolioSnapshot[]> {
+  try {
+    const res = await authFetch(`${API_BASE}/history?period=${period}&timeframe=1D`)
+    const data = await res.json()
+    if (data.ok && data.data?.snapshots) {
+      return data.data.snapshots
+    }
+    return []
+  } catch {
+    return []
   }
-  // Ensure last point is current equity
-  history[history.length - 1] = {
-    timestamp: now,
-    equity,
-    pl: equity - history[0].equity,
-    pl_pct: ((equity - history[0].equity) / history[0].equity) * 100,
-  }
-  return history
 }
 
 // Generate mock price history for positions
@@ -156,40 +141,31 @@ export default function App() {
         if (data.ok) {
           setStatus(data.data)
           setError(null)
-          
-          // Generate mock portfolio history if we have account data but no history
-          if (data.data.account && portfolioHistory.length === 0) {
-            setPortfolioHistory(generateMockPortfolioHistory(data.data.account.equity))
-          } else if (data.data.account) {
-            // Append new data point on each fetch
-            setPortfolioHistory(prev => {
-              const now = Date.now()
-              const newSnapshot: PortfolioSnapshot = {
-                timestamp: now,
-                equity: data.data.account.equity,
-                pl: data.data.account.equity - (prev[0]?.equity || data.data.account.equity),
-                pl_pct: prev[0] ? ((data.data.account.equity - prev[0].equity) / prev[0].equity) * 100 : 0,
-              }
-              // Keep last 48 points (4 hours at 5-second intervals, or display fewer if needed)
-              const updated = [...prev, newSnapshot].slice(-48)
-              return updated
-            })
-          }
         } else {
           setError(data.error || 'Failed to fetch status')
         }
-      } catch (err) {
+      } catch {
         setError('Connection failed - is the agent running?')
+      }
+    }
+
+    const loadPortfolioHistory = async () => {
+      const history = await fetchPortfolioHistory('1M')
+      if (history.length > 0) {
+        setPortfolioHistory(history)
       }
     }
 
     if (setupChecked && !showSetup) {
       fetchStatus()
+      loadPortfolioHistory()
       const interval = setInterval(fetchStatus, 5000)
+      const historyInterval = setInterval(loadPortfolioHistory, 60000)
       const timeInterval = setInterval(() => setTime(new Date()), 1000)
 
       return () => {
         clearInterval(interval)
+        clearInterval(historyInterval)
         clearInterval(timeInterval)
       }
     }

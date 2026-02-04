@@ -225,7 +225,6 @@ interface AgentState {
 // [CUSTOMIZABLE] SOURCE_CONFIG - How much to trust each data source
 // ============================================================================
 const SOURCE_CONFIG = {
-  // [TUNE] Weight each source by reliability (0-1). Higher = more trusted.
   weights: {
     stocktwits: 0.85,           // Decent signal, some noise
     reddit_wallstreetbets: 0.6, // High volume, lots of memes - lower trust
@@ -234,6 +233,9 @@ const SOURCE_CONFIG = {
     reddit_options: 0.85,       // Options-specific alpha
     twitter_fintwit: 0.95,      // FinTwit has real traders
     twitter_news: 0.9,          // Breaking news accounts
+    sec_8k: 0.95,               // Material event filings
+    sec_4: 0.9,                 // Insider trading reports
+    sec_13f: 0.7,               // Institutional holdings (delayed)
   },
   // [TUNE] Reddit flair multipliers - boost/penalize based on post type
   flairMultipliers: {
@@ -721,7 +723,18 @@ export class MahoragaHarness extends DurableObject<Env> {
     const url = new URL(request.url);
     const action = url.pathname.slice(1);
 
-    const protectedActions = ["enable", "disable", "config", "trigger", "status", "logs", "costs", "signals", "setup/status"];
+    const protectedActions = [
+      "enable",
+      "disable",
+      "config",
+      "trigger",
+      "status",
+      "logs",
+      "costs",
+      "signals",
+      "history",
+      "setup/status",
+    ];
     if (protectedActions.includes(action)) {
       if (!this.isAuthorized(request)) {
         return this.unauthorizedResponse();
@@ -756,6 +769,9 @@ export class MahoragaHarness extends DurableObject<Env> {
 
         case "signals":
           return this.jsonResponse({ signals: this.state.signalCache });
+
+        case "history":
+          return this.handleGetHistory(url);
 
         case "trigger":
           await this.alarm();
@@ -859,6 +875,42 @@ export class MahoragaHarness extends DurableObject<Env> {
     return this.jsonResponse({ logs });
   }
 
+  private async handleGetHistory(url: URL): Promise<Response> {
+    const alpaca = createAlpacaProviders(this.env);
+    const period = url.searchParams.get("period") || "1M";
+    const timeframe = url.searchParams.get("timeframe") || "1D";
+
+    try {
+      const history = await alpaca.trading.getPortfolioHistory({
+        period,
+        timeframe,
+        intraday_reporting: "extended_hours",
+      });
+
+      const snapshots = history.timestamp.map((ts, i) => ({
+        timestamp: ts * 1000,
+        equity: history.equity[i],
+        pl: history.profit_loss[i],
+        pl_pct: history.profit_loss_pct[i],
+      }));
+
+      return this.jsonResponse({
+        ok: true,
+        data: {
+          snapshots,
+          base_value: history.base_value,
+          timeframe: history.timeframe,
+        },
+      });
+    } catch (error) {
+      this.log("System", "history_error", { error: String(error) });
+      return new Response(JSON.stringify({ ok: false, error: String(error) }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
   private async handleKillSwitch(): Promise<Response> {
     this.state.enabled = false;
     await this.ctx.storage.deleteAlarm();
@@ -893,13 +945,14 @@ export class MahoragaHarness extends DurableObject<Env> {
 
     await tickerCache.refreshSecTickersIfNeeded();
 
-    const [stocktwitsSignals, redditSignals, cryptoSignals] = await Promise.all([
+    const [stocktwitsSignals, redditSignals, cryptoSignals, secSignals] = await Promise.all([
       this.gatherStockTwits(),
       this.gatherReddit(),
       this.gatherCrypto(),
+      this.gatherSECFilings(),
     ]);
 
-    const allSignals = [...stocktwitsSignals, ...redditSignals, ...cryptoSignals];
+    const allSignals = [...stocktwitsSignals, ...redditSignals, ...cryptoSignals, ...secSignals];
 
     const MAX_SIGNALS = 200;
     const MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -916,6 +969,7 @@ export class MahoragaHarness extends DurableObject<Env> {
       stocktwits: stocktwitsSignals.length,
       reddit: redditSignals.length,
       crypto: cryptoSignals.length,
+      sec: secSignals.length,
       total: this.state.signalCache.length,
     });
   }
@@ -1186,6 +1240,167 @@ export class MahoragaHarness extends DurableObject<Env> {
 
     this.log("Crypto", "gathered_signals", { count: signals.length });
     return signals;
+  }
+
+  private async gatherSECFilings(): Promise<Signal[]> {
+    const signals: Signal[] = [];
+
+    try {
+      const response = await fetch(
+        "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=40&output=atom",
+        {
+          headers: {
+            "User-Agent": "Mahoraga Trading Bot (contact@example.com)",
+            Accept: "application/atom+xml",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        this.log("SEC", "fetch_error", { status: response.status });
+        return signals;
+      }
+
+      const text = await response.text();
+      const entries = this.parseSECAtomFeed(text);
+
+      const alpaca = createAlpacaProviders(this.env);
+
+      for (const entry of entries.slice(0, 15)) {
+        const ticker = await this.resolveTickerFromCompanyName(entry.company);
+        if (!ticker) continue;
+
+        const cached = tickerCache.getCachedValidation(ticker);
+        if (cached === false) continue;
+        if (cached === undefined) {
+          const isValid = await tickerCache.validateWithAlpaca(ticker, alpaca);
+          if (!isValid) continue;
+        }
+
+        const sourceWeight = entry.form === "8-K" ? SOURCE_CONFIG.weights.sec_8k : SOURCE_CONFIG.weights.sec_4;
+        const freshness = this.calculateSECFreshness(entry.updated);
+
+        const sentiment = entry.form === "8-K" ? 0.3 : 0.2;
+        const weightedSentiment = sentiment * sourceWeight * freshness;
+
+        signals.push({
+          symbol: ticker,
+          source: "sec_edgar",
+          source_detail: `sec_${entry.form.toLowerCase().replace("-", "")}`,
+          sentiment: weightedSentiment,
+          raw_sentiment: sentiment,
+          volume: 1,
+          freshness,
+          source_weight: sourceWeight,
+          reason: `SEC ${entry.form}: ${entry.company.slice(0, 50)}`,
+          timestamp: Date.now(),
+        });
+      }
+
+      this.log("SEC", "gathered_signals", { count: signals.length });
+    } catch (error) {
+      this.log("SEC", "error", { message: String(error) });
+    }
+
+    return signals;
+  }
+
+  private parseSECAtomFeed(xml: string): Array<{
+    id: string;
+    title: string;
+    updated: string;
+    form: string;
+    company: string;
+  }> {
+    const entries: Array<{
+      id: string;
+      title: string;
+      updated: string;
+      form: string;
+      company: string;
+    }> = [];
+
+    const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+    let match;
+
+    while ((match = entryRegex.exec(xml)) !== null) {
+      const entryXml = match[1];
+      if (!entryXml) continue;
+
+      const id = this.extractXmlTag(entryXml, "id") || `sec_${Date.now()}_${Math.random()}`;
+      const title = this.extractXmlTag(entryXml, "title") || "";
+      const updated = this.extractXmlTag(entryXml, "updated") || new Date().toISOString();
+
+      const formMatch = title.match(/\((\d+-\w+|\w+)\)/);
+      const form = formMatch ? (formMatch[1] ?? "") : "";
+
+      const companyMatch = title.match(/^([^(]+)/);
+      const company = companyMatch ? (companyMatch[1]?.trim() ?? "") : "";
+
+      if (form && company) {
+        entries.push({ id, title, updated, form, company });
+      }
+    }
+
+    return entries;
+  }
+
+  private extractXmlTag(xml: string, tag: string): string | null {
+    const regex = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`);
+    const match = xml.match(regex);
+    return match ? (match[1] ?? null) : null;
+  }
+
+  private companyToTickerCache: Map<string, string | null> = new Map();
+
+  private async resolveTickerFromCompanyName(companyName: string): Promise<string | null> {
+    const normalized = companyName.toUpperCase().trim();
+
+    if (this.companyToTickerCache.has(normalized)) {
+      return this.companyToTickerCache.get(normalized) ?? null;
+    }
+
+    try {
+      const response = await fetch("https://www.sec.gov/files/company_tickers.json", {
+        headers: { "User-Agent": "Mahoraga Trading Bot" },
+      });
+
+      if (!response.ok) return null;
+
+      const data = (await response.json()) as Record<string, { cik_str: number; ticker: string; title: string }>;
+
+      for (const entry of Object.values(data)) {
+        const entryTitle = entry.title.toUpperCase();
+        if (entryTitle === normalized || normalized.includes(entryTitle) || entryTitle.includes(normalized)) {
+          this.companyToTickerCache.set(normalized, entry.ticker);
+          return entry.ticker;
+        }
+      }
+
+      const firstWord = normalized.split(/[\s,]+/)[0];
+      for (const entry of Object.values(data)) {
+        if (entry.title.toUpperCase().startsWith(firstWord || "")) {
+          this.companyToTickerCache.set(normalized, entry.ticker);
+          return entry.ticker;
+        }
+      }
+
+      this.companyToTickerCache.set(normalized, null);
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private calculateSECFreshness(updatedDate: string): number {
+    const ageMs = Date.now() - new Date(updatedDate).getTime();
+    const ageHours = ageMs / (1000 * 60 * 60);
+
+    if (ageHours < 1) return 1.0;
+    if (ageHours < 4) return 0.9;
+    if (ageHours < 12) return 0.7;
+    if (ageHours < 24) return 0.5;
+    return 0.3;
   }
 
   private async runCryptoTrading(
