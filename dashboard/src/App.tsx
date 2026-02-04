@@ -232,25 +232,37 @@ export default function App() {
     })
   }, [portfolioHistory, portfolioPeriod])
 
-  const marketMarkers = useMemo(() => {
-    if (portfolioPeriod !== '1D' || portfolioHistory.length === 0) return undefined
+  const { marketMarkers, marketHoursZone } = useMemo(() => {
+    if (portfolioPeriod !== '1D' || portfolioHistory.length === 0) {
+      return { marketMarkers: undefined, marketHoursZone: undefined }
+    }
     
     const markers: { index: number; label: string; color?: string }[] = []
+    let openIndex = -1
+    let closeIndex = -1
     
     portfolioHistory.forEach((s, i) => {
       const date = new Date(s.timestamp)
       const hours = date.getHours()
       const minutes = date.getMinutes()
-      const timeStr = `${hours}:${minutes.toString().padStart(2, '0')}`
       
-      if (timeStr === '9:30') {
+      if (hours === 9 && minutes >= 30 && minutes < 45 && openIndex === -1) {
+        openIndex = i
         markers.push({ index: i, label: 'OPEN', color: 'var(--color-hud-success)' })
-      } else if (timeStr === '16:0' || timeStr === '16:00') {
+      } else if (hours === 16 && minutes === 0 && closeIndex === -1) {
+        closeIndex = i
         markers.push({ index: i, label: 'CLOSE', color: 'var(--color-hud-error)' })
       }
     })
     
-    return markers.length > 0 ? markers : undefined
+    const zone = openIndex >= 0 && closeIndex >= 0 
+      ? { openIndex, closeIndex } 
+      : undefined
+    
+    return { 
+      marketMarkers: markers.length > 0 ? markers : undefined,
+      marketHoursZone: zone
+    }
   }, [portfolioHistory, portfolioPeriod])
 
   // Normalize position price histories to % change for stacked comparison view
@@ -525,6 +537,7 @@ export default function App() {
                     showDots={false}
                     formatValue={(v) => `$${(v / 1000).toFixed(1)}k`}
                     markers={marketMarkers}
+                    marketHours={marketHoursZone}
                   />
                 </div>
               ) : (
