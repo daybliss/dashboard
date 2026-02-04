@@ -81,7 +81,8 @@ function getSentimentColor(score: number): string {
 
 async function fetchPortfolioHistory(period: string = '1M'): Promise<PortfolioSnapshot[]> {
   try {
-    const res = await authFetch(`${API_BASE}/history?period=${period}&timeframe=1D`)
+    const timeframe = period === '1D' ? '1H' : '1D'
+    const res = await authFetch(`${API_BASE}/history?period=${period}&timeframe=${timeframe}`)
     const data = await res.json()
     if (data.ok && data.data?.snapshots) {
       return data.data.snapshots
@@ -116,6 +117,7 @@ export default function App() {
   const [setupChecked, setSetupChecked] = useState(false)
   const [time, setTime] = useState(new Date())
   const [portfolioHistory, setPortfolioHistory] = useState<PortfolioSnapshot[]>([])
+  const [portfolioPeriod, setPortfolioPeriod] = useState<'1D' | '1W' | '1M'>('1M')
 
   useEffect(() => {
     const checkSetup = async () => {
@@ -149,27 +151,32 @@ export default function App() {
       }
     }
 
+    if (setupChecked && !showSetup) {
+      fetchStatus()
+      const interval = setInterval(fetchStatus, 5000)
+      const timeInterval = setInterval(() => setTime(new Date()), 1000)
+
+      return () => {
+        clearInterval(interval)
+        clearInterval(timeInterval)
+      }
+    }
+  }, [setupChecked, showSetup])
+
+  useEffect(() => {
+    if (!setupChecked || showSetup) return
+
     const loadPortfolioHistory = async () => {
-      const history = await fetchPortfolioHistory('1M')
+      const history = await fetchPortfolioHistory(portfolioPeriod)
       if (history.length > 0) {
         setPortfolioHistory(history)
       }
     }
 
-    if (setupChecked && !showSetup) {
-      fetchStatus()
-      loadPortfolioHistory()
-      const interval = setInterval(fetchStatus, 5000)
-      const historyInterval = setInterval(loadPortfolioHistory, 60000)
-      const timeInterval = setInterval(() => setTime(new Date()), 1000)
-
-      return () => {
-        clearInterval(interval)
-        clearInterval(historyInterval)
-        clearInterval(timeInterval)
-      }
-    }
-  }, [setupChecked, showSetup])
+    loadPortfolioHistory()
+    const historyInterval = setInterval(loadPortfolioHistory, 60000)
+    return () => clearInterval(historyInterval)
+  }, [setupChecked, showSetup, portfolioPeriod])
 
   const handleSaveConfig = async (config: Config) => {
     const res = await authFetch(`${API_BASE}/config`, {
@@ -215,10 +222,14 @@ export default function App() {
   }, [portfolioHistory])
 
   const portfolioChartLabels = useMemo(() => {
-    return portfolioHistory.map(s => 
-      new Date(s.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-    )
-  }, [portfolioHistory])
+    return portfolioHistory.map(s => {
+      const date = new Date(s.timestamp)
+      if (portfolioPeriod === '1D') {
+        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+      }
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    })
+  }, [portfolioHistory, portfolioPeriod])
 
   // Normalize position price histories to % change for stacked comparison view
   const normalizedPositionSeries = useMemo(() => {
@@ -462,7 +473,26 @@ export default function App() {
 
           {/* Row 2: Portfolio Performance Chart */}
           <div className="col-span-4 md:col-span-8 lg:col-span-8">
-            <Panel title="PORTFOLIO PERFORMANCE" titleRight="24H" className="h-[320px]">
+            <Panel 
+              title="PORTFOLIO PERFORMANCE" 
+              titleRight={
+                <div className="flex gap-2">
+                  {(['1D', '1W', '1M'] as const).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setPortfolioPeriod(p)}
+                      className={clsx(
+                        'hud-label transition-colors',
+                        portfolioPeriod === p ? 'text-hud-primary' : 'text-hud-text-dim hover:text-hud-text'
+                      )}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              } 
+              className="h-[320px]"
+            >
               {portfolioChartData.length > 1 ? (
                 <div className="h-full w-full">
                   <LineChart
