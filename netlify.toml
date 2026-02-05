@@ -4,6 +4,12 @@
   publish = "dist"
 
 [[redirects]]
+  from = "/api/*"
+  to = "https://mahoraga.daybliss01.workers.dev/agent/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
