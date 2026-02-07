@@ -165,8 +165,19 @@ export class OpportunitiesDO extends DurableObject<Env> {
       await this.fetchAndCacheOpportunities();
     }
 
+    // Transform to match frontend expected format
+    const transformed = this.state.arbitrage.map(opp => ({
+      market: opp.marketName,
+      yesPrice: opp.yesPrice,
+      noPrice: opp.noPrice,
+      profitPercent: opp.profitPercent,
+      volume: opp.volume24h,
+      timestamp: opp.updatedAt,
+    }));
+
     return this.jsonResponse({
-      opportunities: this.state.arbitrage,
+      ok: true,
+      data: transformed,
       cachedAt: this.state.lastFetchAt,
       count: this.state.arbitrage.length,
     });
@@ -178,8 +189,19 @@ export class OpportunitiesDO extends DurableObject<Env> {
       await this.fetchAndCacheOpportunities();
     }
 
+    // Transform to match frontend expected format
+    const transformed = this.state.income.map(inc => ({
+      protocol: inc.platform,
+      asset: inc.asset,
+      apy: inc.apy,
+      tvl: inc.tvl || 0,
+      risk: inc.riskLevel,
+      timestamp: inc.updatedAt,
+    }));
+
     return this.jsonResponse({
-      opportunities: this.state.income,
+      ok: true,
+      data: transformed,
       cachedAt: this.state.lastFetchAt,
       count: this.state.income.length,
     });
