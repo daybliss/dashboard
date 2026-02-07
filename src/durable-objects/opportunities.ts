@@ -58,7 +58,11 @@ interface PolymarketMarket {
 // CONSTANTS
 // ============================================================================
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// FREE TIER PROTECTION: Keep API calls minimal
+// Cloudflare Workers Free Tier: 100k requests/day, 50 subrequests/request
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes - aggressive caching to minimize API calls
+const MAX_MARKETS_TO_FETCH = 50; // Limit to stay well under free tier limits
+const GAMMA_API_URL = "https://gamma-api.polymarket.com/events";
 const GAMMA_API_URL = "https://gamma-api.polymarket.com/events";
 
 const DEFAULT_STATE: OpportunitiesState = {
@@ -223,7 +227,10 @@ export class OpportunitiesDO extends DurableObject<Env> {
     this.state.isFetching = true;
     
     try {
-      // Fetch Polymarket data
+      // FREE TIER NOTE: Each fetch uses ~1-2 subrequests total
+      // - 1 Gamma API call
+      // - Optional: 1 D1 write per cached batch
+      // Well within free tier limits (50 subrequests/request, 100k requests/day)
       const arbitrageOpps = await this.fetchPolymarketArbitrage();
       
       // Update state
@@ -246,9 +253,11 @@ export class OpportunitiesDO extends DurableObject<Env> {
     const opportunities: ArbitrageOpportunity[] = [];
     
     try {
-      // Fetch active markets from Gamma API
+      // FREE TIER PROTECTION: Limit markets to minimize API calls
+      // Gamma API call counts as 1 subrequest (well under 50 limit)
+      // 5-minute caching keeps us at ~288 calls/day (well under 100k limit)
       const response = await fetch(
-        `${GAMMA_API_URL}?active=true&closed=false&limit=100`,
+        `${GAMMA_API_URL}?active=true&closed=false&limit=${MAX_MARKETS_TO_FETCH}`,
         {
           headers: {
             "Accept": "application/json",
