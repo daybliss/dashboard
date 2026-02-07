@@ -1,6 +1,6 @@
 /**
  * OpportunitiesDO - Durable Object for caching arbitrage and income opportunities
- * 
+ *
  * Fetches Polymarket data from Goldsky GraphQL Subgraph and caches in D1.
  * Provides singleton pattern for centralized opportunity tracking.
  */
@@ -248,14 +248,14 @@ export class OpportunitiesDO extends DurableObject<Env> {
 
   private async fetchAndCacheOpportunities(): Promise<void> {
     this.state.isFetching = true;
-    
+
     try {
       // FREE TIER NOTE: Each fetch uses ~1-2 subrequests total
       // - 1 Goldsky Subgraph GraphQL call
       // - Optional: 1 D1 write per cached batch
       // Well within free tier limits (50 subrequests/request, 100k requests/day)
       const arbitrageOpps = await this.fetchPolymarketArbitrage();
-      
+
       // Update state
       this.state.arbitrage = arbitrageOpps;
       this.state.income = [...DEFAULT_INCOME_OPPORTUNITIES];
@@ -311,35 +311,56 @@ export class OpportunitiesDO extends DurableObject<Env> {
         errors?: Array<{ message: string }>;
       };
 
+      // DEBUG: Log raw response
+      console.log("Subgraph response:", JSON.stringify(result, null, 2));
+
       if (result.errors) {
         throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
       }
 
       const markets = result.data?.markets || [];
+      console.log(`Fetched ${markets.length} markets from subgraph`);
       const now = new Date().toISOString();
 
       for (const market of markets) {
-        if (!market.outcomes || market.outcomes.length < 2) continue;
+        // DEBUG: Log first few markets to see structure
+        if (opportunities.length < 3) {
+          console.log("Market structure:", JSON.stringify(market, null, 2));
+        }
+
+        if (!market.outcomes || market.outcomes.length < 2) {
+          console.log(`Skipping ${market.id}: less than 2 outcomes`);
+          continue;
+        }
 
         // Find Yes/No outcomes
         const yesOutcome = market.outcomes.find(o =>
-          o.name.toLowerCase() === "yes" || o.name === "Yes"
+          o.name.toLowerCase() === "yes"
         );
         const noOutcome = market.outcomes.find(o =>
-          o.name.toLowerCase() === "no" || o.name === "No"
+          o.name.toLowerCase() === "no"
         );
 
-        if (!yesOutcome || !noOutcome) continue;
-        if (typeof yesOutcome.price !== "number" || typeof noOutcome.price !== "number") continue;
+        if (!yesOutcome || !noOutcome) {
+          console.log(`Skipping ${market.id}: missing yes/no. Outcomes: ${market.outcomes.map(o => o.name).join(", ")}`);
+          continue;
+        }
+        if (typeof yesOutcome.price !== "number" || typeof noOutcome.price !== "number") {
+          console.log(`Skipping ${market.id}: price not number. Yes: ${yesOutcome.price}, No: ${noOutcome.price}`);
+          continue;
+        }
 
         const yesPrice = yesOutcome.price;
         const noPrice = noOutcome.price;
         const sum = yesPrice + noPrice;
 
         // Arbitrage opportunity: YES + NO < $1.00
+        console.log(`Market ${market.id}: YES=${yesPrice}, NO=${noPrice}, SUM=${sum}`);
+        
         if (sum < 1.0) {
           const profitPercent = (1.0 - sum) * 100;
-
+          console.log(`🎯 ARBITRAGE FOUND: ${market.question} - Profit: ${profitPercent.toFixed(2)}%`);
+          
           opportunities.push({
             marketId: market.id,
             marketName: market.question,
@@ -369,16 +390,16 @@ export class OpportunitiesDO extends DurableObject<Env> {
     try {
       // Clear old cache
       await this.env.DB.prepare("DELETE FROM arbitrage_cache WHERE 1=1").run();
-      
+
       // Insert new data
       if (arbitrage.length > 0) {
         const stmt = this.env.DB.prepare(
-          `INSERT INTO arbitrage_cache 
+          `INSERT INTO arbitrage_cache
            (market_id, market_name, yes_price, no_price, sum, profit_percent, volume24h, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         );
 
-        const batch = arbitrage.map(opp => 
+        const batch = arbitrage.map(opp =>
           stmt.bind(
             opp.marketId,
             opp.marketName,
@@ -396,7 +417,7 @@ export class OpportunitiesDO extends DurableObject<Env> {
 
       // Update income cache
       await this.env.DB.prepare("DELETE FROM income_cache WHERE 1=1").run();
-      
+
       const incomeStmt = this.env.DB.prepare(
         `INSERT INTO income_cache
          (id, type, asset, platform, apy, tvl, risk_level, description, updated_at)
