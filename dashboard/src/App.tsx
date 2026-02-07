@@ -9,7 +9,10 @@ import { SetupWizard } from './components/SetupWizard'
 import { LineChart, Sparkline } from './components/LineChart'
 import { NotificationBell } from './components/NotificationBell'
 import { Tooltip, TooltipContent } from './components/Tooltip'
+import { OpportunitiesTab } from './components/OpportunitiesTab'
 import type { Status, Config, LogEntry, Signal, Position, SignalResearch, PortfolioSnapshot } from './types'
+
+type TabId = 'dashboard' | 'research' | 'opportunities' | 'activity'
 
 const API_BASE = '/api'
 
@@ -119,6 +122,7 @@ export default function App() {
   const [time, setTime] = useState(new Date())
   const [portfolioHistory, setPortfolioHistory] = useState<PortfolioSnapshot[]>([])
   const [portfolioPeriod, setPortfolioPeriod] = useState<'1D' | '1W' | '1M'>('1D')
+  const [activeTab, setActiveTab] = useState<TabId>('dashboard')
 
   useEffect(() => {
     const checkSetup = async () => {
@@ -367,7 +371,41 @@ export default function App() {
           </div>
         </header>
 
-        <div className="grid grid-cols-4 md:grid-cols-8 lg:grid-cols-12 gap-4">
+        {/* Tab Navigation */}
+        <nav className="flex gap-1 mb-4 border-b border-hud-line">
+          {[
+            { id: 'dashboard', label: 'DASHBOARD' },
+            { id: 'research', label: 'RESEARCH' },
+            { id: 'opportunities', label: 'OPPORTUNITIES' },
+            { id: 'activity', label: 'ACTIVITY LOG' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as TabId)}
+              className={clsx(
+                'px-4 py-2 hud-label transition-all relative',
+                activeTab === tab.id
+                  ? 'text-hud-primary'
+                  : 'text-hud-text-dim hover:text-hud-text'
+              )}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-hud-primary"
+                  initial={false}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                />
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {activeTab === 'opportunities' ? (
+          <OpportunitiesTab />
+        ) : (
+          <div className="grid grid-cols-4 md:grid-cols-8 lg:grid-cols-12 gap-4">
           {/* Row 1: Account, Positions, LLM Costs */}
           <div className="col-span-4 md:col-span-4 lg:col-span-3">
             <Panel title="ACCOUNT" className="h-full">
@@ -781,6 +819,7 @@ export default function App() {
             </Panel>
           </div>
         </div>
+        )}
 
         <footer className="mt-4 pt-3 border-t border-hud-line flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex flex-wrap gap-4 md:gap-6">

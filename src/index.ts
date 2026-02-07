@@ -2,10 +2,12 @@ import type { Env } from "./env.d";
 import { MahoragaMcpAgent } from "./mcp/agent";
 import { handleCronEvent } from "./jobs/cron";
 import { getHarnessStub } from "./durable-objects/mahoraga-harness";
+import { getOpportunitiesStub } from "./durable-objects/opportunities";
 
 export { SessionDO } from "./durable-objects/session";
 export { MahoragaMcpAgent };
 export { MahoragaHarness } from "./durable-objects/mahoraga-harness";
+export { OpportunitiesDO } from "./durable-objects/opportunities";
 
 function constantTimeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -62,6 +64,12 @@ export default {
             health: "/health",
             mcp: "/mcp (auth required)",
             agent: "/agent/* (auth required)",
+            opportunities: {
+              arbitrage: "/api/opportunities/arbitrage",
+              income: "/api/opportunities/income",
+              status: "/api/opportunities/status",
+              refresh: "/api/opportunities/refresh (POST, auth required)",
+            },
           },
         }),
         {
@@ -87,6 +95,33 @@ export default {
         headers: request.headers,
         body: request.body,
       }));
+    }
+
+    // Opportunities API endpoints
+    if (url.pathname === "/api/opportunities/arbitrage") {
+      const stub = getOpportunitiesStub(env);
+      return stub.fetch(new Request("http://opportunities/arbitrage"));
+    }
+
+    if (url.pathname === "/api/opportunities/income") {
+      const stub = getOpportunitiesStub(env);
+      return stub.fetch(new Request("http://opportunities/income"));
+    }
+
+    if (url.pathname === "/api/opportunities/refresh") {
+      if (request.method !== "POST") {
+        return new Response("Method not allowed", { status: 405 });
+      }
+      if (!isAuthorized(request, env)) {
+        return unauthorizedResponse();
+      }
+      const stub = getOpportunitiesStub(env);
+      return stub.fetch(new Request("http://opportunities/refresh", { method: "POST" }));
+    }
+
+    if (url.pathname === "/api/opportunities/status") {
+      const stub = getOpportunitiesStub(env);
+      return stub.fetch(new Request("http://opportunities/status"));
     }
 
     return new Response("Not found", { status: 404 });

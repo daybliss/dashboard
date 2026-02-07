@@ -4,6 +4,7 @@ export interface Env {
   ARTIFACTS: R2Bucket;
   SESSION: DurableObjectNamespace;
   MAHORAGA_HARNESS?: DurableObjectNamespace;
+  OPPORTUNITIES_DO: DurableObjectNamespace;
 
   ALPACA_API_KEY: string;
   ALPACA_API_SECRET: string;
