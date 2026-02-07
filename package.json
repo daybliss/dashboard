@@ -4,7 +4,7 @@
   "description": "Cloudflare Workers MCP server for autonomous stock trading with Alpaca",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev -c wrangler.toml",
     "build": "tsc",
     "deploy": "wrangler deploy",
     "deploy:production": "wrangler deploy --env production",

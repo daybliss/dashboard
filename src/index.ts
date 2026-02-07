@@ -85,6 +85,27 @@ export default {
       return MahoragaMcpAgent.mount("/mcp", { binding: "MCP_AGENT" }).fetch(request, env, ctx);
     }
 
+    // Opportunities API endpoints (check before /agent catch-all)
+    // Supports both /api/opportunities/* and /agent/opportunities/* (Vite proxy rewrites /api -> /agent)
+    const oppsMatch = url.pathname.match(/^\/(api|agent)\/opportunities\/(arbitrage|income|refresh|status)$/);
+    if (oppsMatch) {
+      const action = oppsMatch[2];
+
+      if (action === "refresh") {
+        if (request.method !== "POST") {
+          return new Response("Method not allowed", { status: 405 });
+        }
+        if (!isAuthorized(request, env)) {
+          return unauthorizedResponse();
+        }
+      }
+
+      const stub = getOpportunitiesStub(env);
+      return stub.fetch(new Request(`http://opportunities/${action}`, {
+        method: action === "refresh" ? "POST" : "GET",
+      }));
+    }
+
     if (url.pathname.startsWith("/agent")) {
       const stub = getHarnessStub(env);
       const agentPath = url.pathname.replace("/agent", "") || "/status";
@@ -95,33 +116,6 @@ export default {
         headers: request.headers,
         body: request.body,
       }));
-    }
-
-    // Opportunities API endpoints
-    if (url.pathname === "/api/opportunities/arbitrage") {
-      const stub = getOpportunitiesStub(env);
-      return stub.fetch(new Request("http://opportunities/arbitrage"));
-    }
-
-    if (url.pathname === "/api/opportunities/income") {
-      const stub = getOpportunitiesStub(env);
-      return stub.fetch(new Request("http://opportunities/income"));
-    }
-
-    if (url.pathname === "/api/opportunities/refresh") {
-      if (request.method !== "POST") {
-        return new Response("Method not allowed", { status: 405 });
-      }
-      if (!isAuthorized(request, env)) {
-        return unauthorizedResponse();
-      }
-      const stub = getOpportunitiesStub(env);
-      return stub.fetch(new Request("http://opportunities/refresh", { method: "POST" }));
-    }
-
-    if (url.pathname === "/api/opportunities/status") {
-      const stub = getOpportunitiesStub(env);
-      return stub.fetch(new Request("http://opportunities/status"));
     }
 
     return new Response("Not found", { status: 404 });

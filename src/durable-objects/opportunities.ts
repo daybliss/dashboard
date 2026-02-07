@@ -63,7 +63,6 @@ interface PolymarketMarket {
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes - aggressive caching to minimize API calls
 const MAX_MARKETS_TO_FETCH = 50; // Limit to stay well under free tier limits
 const GAMMA_API_URL = "https://gamma-api.polymarket.com/events";
-const GAMMA_API_URL = "https://gamma-api.polymarket.com/events";
 
 const DEFAULT_STATE: OpportunitiesState = {
   arbitrage: [],

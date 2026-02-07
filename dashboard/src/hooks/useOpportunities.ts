@@ -107,17 +107,24 @@ export function useOpportunities(): UseOpportunitiesReturn {
       const res = await authFetch(`${API_BASE}/opportunities/arbitrage`)
       const result = await res.json()
       
-      if (result.ok && result.data) {
+      if (result.opportunities) {
+        // Map backend fields (marketName/volume24h) to frontend fields (market/volume)
+        const mapped = result.opportunities.map((item: Record<string, unknown>) => ({
+          market: item.marketName || item.market,
+          yesPrice: item.yesPrice,
+          noPrice: item.noPrice,
+          profitPercent: item.profitPercent,
+          volume: item.volume24h ?? item.volume ?? 0,
+          timestamp: item.updatedAt || item.timestamp,
+        })) as ArbitrageOpportunity[]
         // Sort by profit % descending
-        const sorted = result.data.sort((a: ArbitrageOpportunity, b: ArbitrageOpportunity) => 
-          b.profitPercent - a.profitPercent
-        )
+        const sorted = mapped.sort((a, b) => b.profitPercent - a.profitPercent)
         setData(prev => ({ ...prev, arbitrage: sorted }))
         setLastUpdated(prev => ({ ...prev, arbitrage: new Date() }))
-      } else {
-        setError(prev => ({ 
-          ...prev, 
-          arbitrage: result.error || 'Failed to fetch arbitrage data' 
+      } else if (result.error) {
+        setError(prev => ({
+          ...prev,
+          arbitrage: result.error || 'Failed to fetch arbitrage data'
         }))
       }
     } catch (err) {
@@ -138,14 +145,23 @@ export function useOpportunities(): UseOpportunitiesReturn {
       const res = await authFetch(`${API_BASE}/opportunities/income`)
       const result = await res.json()
       
-      if (result.ok && result.data) {
-        setData(prev => ({ ...prev, income: result.data }))
+      if (result.opportunities) {
+        // Map backend fields (platform/riskLevel) to frontend fields (protocol/risk)
+        const mapped = result.opportunities.map((item: Record<string, unknown>) => ({
+          protocol: item.platform || item.protocol,
+          asset: item.asset,
+          apy: item.apy,
+          tvl: item.tvl || 0,
+          risk: item.riskLevel || item.risk,
+          timestamp: item.updatedAt || item.timestamp,
+        })) as IncomeOpportunity[]
+        setData(prev => ({ ...prev, income: mapped }))
         setLastUpdated(prev => ({ ...prev, income: new Date() }))
-      } else {
+      } else if (result.error) {
         // Keep static data on error, just log it
-        setError(prev => ({ 
-          ...prev, 
-          income: result.error || 'Failed to fetch income data' 
+        setError(prev => ({
+          ...prev,
+          income: result.error || 'Failed to fetch income data'
         }))
       }
     } catch (err) {

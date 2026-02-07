@@ -31,9 +31,9 @@ export const FREE_TIER_CONFIG = {
 
 // Helper to check if we're within limits
 export function checkRateLimit(
-  key: string,
-  limit: number,
-  kv: KVNamespace
+  _key: string,
+  _limit: number,
+  _kv: KVNamespace
 ): Promise<boolean> {
   // Implementation in DO
   return Promise.resolve(true);
