@@ -1,7 +1,7 @@
 /**
  * OpportunitiesDO - Durable Object for caching arbitrage and income opportunities
  * 
- * Fetches Polymarket data from Gamma API and caches in D1.
+ * Fetches Polymarket data from Goldsky GraphQL Subgraph and caches in D1.
  * Provides singleton pattern for centralized opportunity tracking.
  */
 
@@ -42,16 +42,18 @@ interface OpportunitiesState {
   isFetching: boolean;
 }
 
+// GraphQL Subgraph response types
+interface PolymarketOutcome {
+  id: string;
+  name: string;
+  price: number;
+}
+
 interface PolymarketMarket {
   id: string;
   question: string;
-  volume24h?: number;
-  outcomes?: Array<{
-    name: string;
-    price?: number;
-  }>;
-  active?: boolean;
-  closed?: boolean;
+  volume24h: number;
+  outcomes: PolymarketOutcome[];
 }
 
 // ============================================================================
@@ -62,7 +64,7 @@ interface PolymarketMarket {
 // Cloudflare Workers Free Tier: 100k requests/day, 50 subrequests/request
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes - aggressive caching to minimize API calls
 const MAX_MARKETS_TO_FETCH = 50; // Limit to stay well under free tier limits
-const GAMMA_API_URL = "https://gamma-api.polymarket.com/events";
+const POLYMARKET_SUBGRAPH_URL = "https://api.goldsky.com/api/public/project_cl6kegq1e1ed101ug8yncq1t5/subgraphs/polymarket/0.1.5/gn";
 
 const DEFAULT_STATE: OpportunitiesState = {
   arbitrage: [],
@@ -249,7 +251,7 @@ export class OpportunitiesDO extends DurableObject<Env> {
     
     try {
       // FREE TIER NOTE: Each fetch uses ~1-2 subrequests total
-      // - 1 Gamma API call
+      // - 1 Goldsky Subgraph GraphQL call
       // - Optional: 1 D1 write per cached batch
       // Well within free tier limits (50 subrequests/request, 100k requests/day)
       const arbitrageOpps = await this.fetchPolymarketArbitrage();
@@ -272,35 +274,58 @@ export class OpportunitiesDO extends DurableObject<Env> {
 
   private async fetchPolymarketArbitrage(): Promise<ArbitrageOpportunity[]> {
     const opportunities: ArbitrageOpportunity[] = [];
-    
+
     try {
       // FREE TIER PROTECTION: Limit markets to minimize API calls
-      // Gamma API call counts as 1 subrequest (well under 50 limit)
+      // Goldsky Subgraph call counts as 1 subrequest (well under 50 limit)
       // 5-minute caching keeps us at ~288 calls/day (well under 100k limit)
-      const response = await fetch(
-        `${GAMMA_API_URL}?active=true&closed=false&limit=${MAX_MARKETS_TO_FETCH}`,
-        {
-          headers: {
-            "Accept": "application/json",
-          },
-        }
-      );
+      const response = await fetch(POLYMARKET_SUBGRAPH_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: `
+            query GetMarkets {
+              markets(where: { active: true, closed: false }, first: ${MAX_MARKETS_TO_FETCH}) {
+                id
+                question
+                outcomes {
+                  id
+                  name
+                  price
+                }
+                volume24h
+              }
+            }
+          `,
+        }),
+      });
 
       if (!response.ok) {
-        throw new Error(`Gamma API error: ${response.status}`);
+        throw new Error(`Goldsky Subgraph error: ${response.status}`);
       }
 
-      const markets = await response.json() as PolymarketMarket[];
+      const result = await response.json() as {
+        data?: { markets: PolymarketMarket[] };
+        errors?: Array<{ message: string }>;
+      };
+
+      if (result.errors) {
+        throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
+      }
+
+      const markets = result.data?.markets || [];
       const now = new Date().toISOString();
 
       for (const market of markets) {
         if (!market.outcomes || market.outcomes.length < 2) continue;
 
         // Find Yes/No outcomes
-        const yesOutcome = market.outcomes.find(o => 
+        const yesOutcome = market.outcomes.find(o =>
           o.name.toLowerCase() === "yes" || o.name === "Yes"
         );
-        const noOutcome = market.outcomes.find(o => 
+        const noOutcome = market.outcomes.find(o =>
           o.name.toLowerCase() === "no" || o.name === "No"
         );
 
@@ -314,7 +339,7 @@ export class OpportunitiesDO extends DurableObject<Env> {
         // Arbitrage opportunity: YES + NO < $1.00
         if (sum < 1.0) {
           const profitPercent = (1.0 - sum) * 100;
-          
+
           opportunities.push({
             marketId: market.id,
             marketName: market.question,
