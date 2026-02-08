@@ -98,13 +98,14 @@ export function OpportunitiesTab() {
 
       {/* Top panel: Arbitrage Scanner */}
       <div className="flex-1 min-h-[300px]">
-        <ArbitrageSection 
+        <ArbitrageSection
           opportunities={data.arbitrage}
           loading={loading.arbitrage}
           error={error.arbitrage}
           lastUpdated={lastUpdated.arbitrage}
           onRefresh={refetch}
           onExecutePaperTrade={executePaperTrade}
+          paperTrades={paperTrades}
         />
       </div>
       

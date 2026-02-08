@@ -14,6 +14,7 @@ interface ArbitrageSectionProps {
   lastUpdated: Date | null
   onRefresh: () => void
   onExecutePaperTrade?: (opp: ArbitrageOpportunity) => Promise<{ success: boolean; trade?: PaperTrade; error?: string }>
+  paperTrades?: PaperTrade[]
 }
 
 function formatPercent(value: number): string {
@@ -42,14 +43,15 @@ function getProfitColor(percent: number): string {
 interface PaperTradeButtonProps {
   opportunity: ArbitrageOpportunity
   onExecute: (opp: ArbitrageOpportunity) => Promise<{ success: boolean; trade?: PaperTrade; error?: string }>
+  hasOpenTrade: boolean
 }
 
-function PaperTradeButton({ opportunity, onExecute }: PaperTradeButtonProps) {
+function PaperTradeButton({ opportunity, onExecute, hasOpenTrade }: PaperTradeButtonProps) {
   const [state, setState] = useState<ButtonState>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const handleClick = useCallback(async () => {
-    if (state === 'loading' || state === 'success') return
+    if (state === 'loading' || state === 'success' || hasOpenTrade) return
     
     setState('loading')
     setErrorMsg(null)
@@ -77,9 +79,18 @@ function PaperTradeButton({ opportunity, onExecute }: PaperTradeButtonProps) {
         setErrorMsg(null)
       }, 3000)
     }
-  }, [opportunity, onExecute, state])
+  }, [opportunity, onExecute, state, hasOpenTrade])
 
   const buttonContent = () => {
+    if (hasOpenTrade) {
+      return (
+        <span className="flex flex-col items-end">
+          <span className="text-[9px] text-hud-text-dim">OPEN</span>
+          <span className="text-[8px] text-hud-text-dim">Trade Active</span>
+        </span>
+      )
+    }
+    
     switch (state) {
       case 'loading':
         return (
@@ -119,12 +130,13 @@ function PaperTradeButton({ opportunity, onExecute }: PaperTradeButtonProps) {
   return (
     <button
       onClick={handleClick}
-      disabled={state === 'loading' || state === 'success'}
+      disabled={state === 'loading' || state === 'success' || hasOpenTrade}
       className={clsx(
         'px-2 py-1 border transition-all duration-200 text-right min-w-[80px]',
+        hasOpenTrade && 'border-hud-text-dim/30 bg-hud-line/10 cursor-not-allowed opacity-60',
         state === 'success' && 'border-hud-success/50 bg-hud-success/10',
         state === 'error' && 'border-hud-error/50 bg-hud-error/10',
-        state === 'idle' && 'border-hud-cyan/30 hover:border-hud-cyan hover:bg-hud-cyan/10',
+        state === 'idle' && !hasOpenTrade && 'border-hud-cyan/30 hover:border-hud-cyan hover:bg-hud-cyan/10',
         state === 'loading' && 'border-hud-cyan/30 opacity-70',
         (state === 'loading' || state === 'success') && 'cursor-not-allowed'
       )}
@@ -134,14 +146,19 @@ function PaperTradeButton({ opportunity, onExecute }: PaperTradeButtonProps) {
   )
 }
 
-export function ArbitrageSection({ 
-  opportunities, 
-  loading, 
-  error, 
-  lastUpdated, 
+export function ArbitrageSection({
+  opportunities,
+  loading,
+  error,
+  lastUpdated,
   onRefresh,
   onExecutePaperTrade,
+  paperTrades = [],
 }: ArbitrageSectionProps) {
+  // Check if market has open trade
+  const hasOpenTrade = (marketId: string) => {
+    return paperTrades.some(trade => trade.marketId === marketId && trade.status === 'open')
+  }
   return (
     <Panel 
       title="ARBITRAGE SCANNER" 
@@ -226,21 +243,21 @@ export function ArbitrageSection({
                     className="border-b border-hud-line/20 hover:bg-hud-line/10"
                   >
                     <td className="py-2 px-2">
-                      <span className="hud-value-md text-hud-text-bright">{opp.market}</span>
+                      <span className="hud-value-md text-white font-medium">{opp.market}</span>
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <span className="hud-value-md">${opp.yesPrice.toFixed(3)}</span>
+                      <span className="hud-value-md text-cyan-300 font-semibold">${opp.yesPrice.toFixed(3)}</span>
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <span className="hud-value-md">${opp.noPrice.toFixed(3)}</span>
+                      <span className="hud-value-md text-purple-300 font-semibold">${opp.noPrice.toFixed(3)}</span>
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <span className={clsx('hud-value-md font-medium', getProfitColor(opp.profitPercent))}>
+                      <span className={clsx('hud-value-md font-bold', getProfitColor(opp.profitPercent))}>
                         {formatPercent(opp.profitPercent)}
                       </span>
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <span className="hud-value-md text-hud-text-dim">
+                      <span className="hud-value-md text-gray-300 font-medium">
                         {formatCurrency(opp.volume)}
                       </span>
                     </td>
@@ -249,6 +266,7 @@ export function ArbitrageSection({
                         <PaperTradeButton
                           opportunity={opp}
                           onExecute={onExecutePaperTrade}
+                          hasOpenTrade={hasOpenTrade(opp.marketId || opp.market)}
                         />
                       </td>
                     )}
