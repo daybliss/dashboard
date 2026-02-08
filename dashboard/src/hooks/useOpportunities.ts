@@ -107,17 +107,17 @@ export function useOpportunities(): UseOpportunitiesReturn {
       const res = await authFetch(`${API_BASE}/opportunities/arbitrage`)
       const result = await res.json()
       
-      if (result.opportunities) {
-        // Map backend fields (marketName/volume24h) to frontend fields (market/volume)
-        const mapped = result.opportunities.map((item: Record<string, unknown>) => ({
-          market: item.marketName || item.market,
+      const items = result.data || result.opportunities
+      if (items) {
+        // Map backend fields to frontend fields (supports both transformed and raw formats)
+        const mapped = items.map((item: Record<string, unknown>) => ({
+          market: item.market || item.marketName,
           yesPrice: item.yesPrice,
           noPrice: item.noPrice,
           profitPercent: item.profitPercent,
-          volume: item.volume24h ?? item.volume ?? 0,
-          timestamp: item.updatedAt || item.timestamp,
+          volume: item.volume ?? item.volume24h ?? 0,
+          timestamp: item.timestamp || item.updatedAt,
         })) as ArbitrageOpportunity[]
-        // Sort by profit % descending
         const sorted = mapped.sort((a, b) => b.profitPercent - a.profitPercent)
         setData(prev => ({ ...prev, arbitrage: sorted }))
         setLastUpdated(prev => ({ ...prev, arbitrage: new Date() }))
@@ -145,15 +145,16 @@ export function useOpportunities(): UseOpportunitiesReturn {
       const res = await authFetch(`${API_BASE}/opportunities/income`)
       const result = await res.json()
       
-      if (result.opportunities) {
-        // Map backend fields (platform/riskLevel) to frontend fields (protocol/risk)
-        const mapped = result.opportunities.map((item: Record<string, unknown>) => ({
-          protocol: item.platform || item.protocol,
+      const incItems = result.data || result.opportunities
+      if (incItems) {
+        // Map backend fields to frontend fields (supports both transformed and raw formats)
+        const mapped = incItems.map((item: Record<string, unknown>) => ({
+          protocol: item.protocol || item.platform,
           asset: item.asset,
           apy: item.apy,
           tvl: item.tvl || 0,
-          risk: item.riskLevel || item.risk,
-          timestamp: item.updatedAt || item.timestamp,
+          risk: item.risk || item.riskLevel,
+          timestamp: item.timestamp || item.updatedAt,
         })) as IncomeOpportunity[]
         setData(prev => ({ ...prev, income: mapped }))
         setLastUpdated(prev => ({ ...prev, income: new Date() }))

@@ -1,7 +1,12 @@
 /**
  * OpportunitiesDO - Durable Object for caching arbitrage and income opportunities
+<<<<<<< HEAD
  *
  * Fetches Polymarket data from Goldsky GraphQL Subgraph and caches in D1.
+=======
+ * 
+ * Fetches Polymarket data from Gamma API and caches in D1.
+>>>>>>> 25c6c04 (Update gitignore and add development documentation)
  * Provides singleton pattern for centralized opportunity tracking.
  */
 
@@ -42,18 +47,23 @@ interface OpportunitiesState {
   isFetching: boolean;
 }
 
-// GraphQL Subgraph response types
-interface PolymarketOutcome {
-  id: string;
-  name: string;
-  price: number;
-}
-
-interface PolymarketMarket {
+// Gamma API response types
+interface GammaMarket {
   id: string;
   question: string;
-  volume24h: number;
-  outcomes: PolymarketOutcome[];
+  outcomes: string; // JSON string e.g. '["Yes", "No"]'
+  outcomePrices: string; // JSON string e.g. '["0.45", "0.55"]'
+  active: boolean;
+  closed: boolean;
+  volume24hr?: number;
+  groupItemTitle?: string;
+}
+
+interface GammaEvent {
+  id: string;
+  title: string;
+  markets: GammaMarket[];
+  volume24hr?: number;
 }
 
 // ============================================================================
@@ -64,7 +74,7 @@ interface PolymarketMarket {
 // Cloudflare Workers Free Tier: 100k requests/day, 50 subrequests/request
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes - aggressive caching to minimize API calls
 const MAX_MARKETS_TO_FETCH = 50; // Limit to stay well under free tier limits
-const POLYMARKET_SUBGRAPH_URL = "https://api.goldsky.com/api/public/project_cl6kegq1e1ed101ug8yncq1t5/subgraphs/polymarket/0.1.5/gn";
+const GAMMA_API_URL = "https://gamma-api.polymarket.com/events";
 
 const DEFAULT_STATE: OpportunitiesState = {
   arbitrage: [],
@@ -251,7 +261,7 @@ export class OpportunitiesDO extends DurableObject<Env> {
 
     try {
       // FREE TIER NOTE: Each fetch uses ~1-2 subrequests total
-      // - 1 Goldsky Subgraph GraphQL call
+      // - 1 Gamma API call
       // - Optional: 1 D1 write per cached batch
       // Well within free tier limits (50 subrequests/request, 100k requests/day)
       const arbitrageOpps = await this.fetchPolymarketArbitrage();
@@ -276,36 +286,17 @@ export class OpportunitiesDO extends DurableObject<Env> {
     const opportunities: ArbitrageOpportunity[] = [];
 
     try {
-      // FREE TIER PROTECTION: Limit markets to minimize API calls
-      // Goldsky Subgraph call counts as 1 subrequest (well under 50 limit)
-      // 5-minute caching keeps us at ~288 calls/day (well under 100k limit)
-      const response = await fetch(POLYMARKET_SUBGRAPH_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: `
-            query GetMarkets {
-              markets(where: { active: true, closed: false }, first: ${MAX_MARKETS_TO_FETCH}) {
-                id
-                question
-                outcomes {
-                  id
-                  name
-                  price
-                }
-                volume24h
-              }
-            }
-          `,
-        }),
-      });
+      // FREE TIER PROTECTION: 1 API call, 5-min cache = ~288 calls/day
+      const response = await fetch(
+        `${GAMMA_API_URL}?active=true&closed=false&limit=${MAX_MARKETS_TO_FETCH}`,
+        { headers: { "Accept": "application/json" } }
+      );
 
       if (!response.ok) {
-        throw new Error(`Goldsky Subgraph error: ${response.status}`);
+        throw new Error(`Gamma API error: ${response.status}`);
       }
 
+<<<<<<< HEAD
       const result = await response.json() as {
         data?: { markets: PolymarketMarket[] };
         errors?: Array<{ message: string }>;
@@ -348,12 +339,36 @@ export class OpportunitiesDO extends DurableObject<Env> {
         if (typeof yesOutcome.price !== "number" || typeof noOutcome.price !== "number") {
           console.log(`Skipping ${market.id}: price not number. Yes: ${yesOutcome.price}, No: ${noOutcome.price}`);
           continue;
+=======
+      const events = await response.json() as GammaEvent[];
+      const now = new Date().toISOString();
+
+      for (const event of events) {
+        const activeMarkets = (event.markets || []).filter(m => m.active && !m.closed);
+        if (activeMarkets.length < 2) continue;
+
+        // Multi-outcome arbitrage: sum of YES prices across all markets in an event
+        // If sum < $1.00, buying YES on every outcome guarantees profit
+        let totalYesPrice = 0;
+        let allValid = true;
+
+        for (const market of activeMarkets) {
+          try {
+            const prices = JSON.parse(market.outcomePrices || "[]") as string[];
+            if (prices.length < 1 || !prices[0]) { allValid = false; break; }
+            const yesPrice = parseFloat(prices[0]!);
+            if (isNaN(yesPrice) || yesPrice <= 0) { allValid = false; break; }
+            totalYesPrice += yesPrice;
+          } catch {
+            allValid = false;
+            break;
+          }
+>>>>>>> 25c6c04 (Update gitignore and add development documentation)
         }
 
-        const yesPrice = yesOutcome.price;
-        const noPrice = noOutcome.price;
-        const sum = yesPrice + noPrice;
+        if (!allValid || totalYesPrice >= 1.0 || totalYesPrice <= 0) continue;
 
+<<<<<<< HEAD
         // Arbitrage opportunity: YES + NO < $1.00
         console.log(`Market ${market.id}: YES=${yesPrice}, NO=${noPrice}, SUM=${sum}`);
         
@@ -371,6 +386,57 @@ export class OpportunitiesDO extends DurableObject<Env> {
             volume24h: market.volume24h || 0,
             updatedAt: now,
           });
+=======
+        const profitPercent = (1.0 - totalYesPrice) * 100;
+
+        // Use the highest and lowest priced markets as yesPrice/noPrice for display
+        const marketPrices = activeMarkets.map(m => {
+          const prices = JSON.parse(m.outcomePrices || "[]") as string[];
+          return parseFloat(prices[0] || "0");
+        });
+        const maxPrice = Math.max(...marketPrices);
+        const minPrice = Math.min(...marketPrices);
+
+        opportunities.push({
+          marketId: event.id,
+          marketName: `${event.title} (${activeMarkets.length} outcomes)`,
+          yesPrice: Number(maxPrice.toFixed(4)),
+          noPrice: Number(minPrice.toFixed(4)),
+          sum: Number(totalYesPrice.toFixed(4)),
+          profitPercent: Number(profitPercent.toFixed(2)),
+          volume24h: event.volume24hr || 0,
+          updatedAt: now,
+        });
+      }
+
+      // Also check individual binary markets for YES+NO < $1.00 spread
+      for (const event of events) {
+        for (const market of event.markets || []) {
+          if (!market.active || market.closed) continue;
+          try {
+            const prices = JSON.parse(market.outcomePrices || "[]") as string[];
+            if (prices.length < 2 || !prices[0] || !prices[1]) continue;
+            const yesPrice = parseFloat(prices[0]!);
+            const noPrice = parseFloat(prices[1]!);
+            if (isNaN(yesPrice) || isNaN(noPrice)) continue;
+            const sum = yesPrice + noPrice;
+            if (sum < 0.995 && sum > 0) {
+              const profitPercent = (1.0 - sum) * 100;
+              opportunities.push({
+                marketId: market.id,
+                marketName: market.question,
+                yesPrice: Number(yesPrice.toFixed(4)),
+                noPrice: Number(noPrice.toFixed(4)),
+                sum: Number(sum.toFixed(4)),
+                profitPercent: Number(profitPercent.toFixed(2)),
+                volume24h: market.volume24hr || 0,
+                updatedAt: now,
+              });
+            }
+          } catch {
+            continue;
+          }
+>>>>>>> 25c6c04 (Update gitignore and add development documentation)
         }
       }
 
@@ -379,7 +445,6 @@ export class OpportunitiesDO extends DurableObject<Env> {
 
     } catch (error) {
       console.error("Error fetching Polymarket data:", error);
-      // Return cached data if available, empty array otherwise
       return this.state.arbitrage;
     }
 

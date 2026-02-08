@@ -106,3 +106,4 @@ coverage/
 # -----------------------------------------------------------------------------
 docs/research/
 docs/*.glb
+.cursorindexingignore
