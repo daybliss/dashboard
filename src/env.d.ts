@@ -5,6 +5,7 @@ export interface Env {
   SESSION: DurableObjectNamespace;
   MAHORAGA_HARNESS?: DurableObjectNamespace;
   OPPORTUNITIES_DO: DurableObjectNamespace;
+  PAPER_TRADING_DO: DurableObjectNamespace;
 
   ALPACA_API_KEY: string;
   ALPACA_API_SECRET: string;
