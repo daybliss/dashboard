@@ -57,7 +57,7 @@ export function MetricInline({
   return (
     <div className={clsx('flex items-baseline gap-2', className)}>
       <span className="hud-label">{label}</span>
-      <span className={clsx('hud-value-sm', valueClassName || colorClasses[color])}>
+      <span className={clsx('hud-value-md', valueClassName || colorClasses[color])}>
         {value}
       </span>
     </div>

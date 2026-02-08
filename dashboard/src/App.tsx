@@ -365,7 +365,7 @@ export default function App() {
             >
               [CONFIG]
             </button>
-            <span className="hud-value-sm font-mono">
+            <span className="hud-value-md font-mono">
               {time.toLocaleTimeString('en-US', { hour12: false })}
             </span>
           </div>
@@ -474,7 +474,7 @@ export default function App() {
                             animate={{ opacity: 1 }}
                             className="border-b border-hud-line/20 hover:bg-hud-line/10"
                           >
-                            <td className="hud-value-sm py-2 px-2">
+                            <td className="hud-value-md py-2 px-2">
                               <Tooltip
                                 position="right"
                                 content={
@@ -503,10 +503,10 @@ export default function App() {
                                 </span>
                               </Tooltip>
                             </td>
-                            <td className="hud-value-sm text-right py-2 px-2 hidden sm:table-cell">{pos.qty}</td>
-                            <td className="hud-value-sm text-right py-2 px-2 hidden md:table-cell">{formatCurrency(pos.market_value)}</td>
+                            <td className="hud-value-md text-right py-2 px-2 hidden sm:table-cell">{pos.qty}</td>
+                            <td className="hud-value-md text-right py-2 px-2 hidden md:table-cell">{formatCurrency(pos.market_value)}</td>
                             <td className={clsx(
-                              'hud-value-sm text-right py-2 px-2',
+                              'hud-value-md text-right py-2 px-2',
                               pos.unrealized_pl >= 0 ? 'text-hud-success' : 'text-hud-error'
                             )}>
                               <div>{formatCurrency(pos.unrealized_pl)}</div>
@@ -606,7 +606,7 @@ export default function App() {
                             className="w-2 h-2 rounded-full" 
                             style={{ backgroundColor: `var(--color-hud-${color})` }}
                           />
-                          <span className="hud-value-sm">{pos.symbol}</span>
+                          <span className="hud-value-md">{pos.symbol}</span>
                           <span className={clsx('hud-label', isPositive ? 'text-hud-success' : 'text-hud-error')}>
                             {formatPercent(plPct)}
                           </span>
@@ -673,7 +673,7 @@ export default function App() {
                       >
                         <div className="flex items-center gap-2">
                           {sig.isCrypto && <span className="text-hud-warning text-xs">₿</span>}
-                          <span className="hud-value-sm">{sig.symbol}</span>
+                          <span className="hud-value-md">{sig.symbol}</span>
                           <span className={clsx('hud-label', sig.isCrypto ? 'text-hud-warning' : '')}>{sig.source.toUpperCase()}</span>
                         </div>
                         <div className="flex items-center gap-3">
@@ -684,7 +684,7 @@ export default function App() {
                           ) : (
                             <span className="hud-label hidden sm:inline">VOL {sig.volume}</span>
                           )}
-                          <span className={clsx('hud-value-sm', getSentimentColor(sig.sentiment))}>
+                          <span className={clsx('hud-value-md', getSentimentColor(sig.sentiment))}>
                             {(sig.sentiment * 100).toFixed(0)}%
                           </span>
                         </div>
@@ -791,12 +791,12 @@ export default function App() {
                         className="p-2 border border-hud-line/30 rounded hover:border-hud-line/60 cursor-help transition-colors"
                       >
                         <div className="flex justify-between items-center mb-1">
-                          <span className="hud-value-sm">{symbol}</span>
+                          <span className="hud-value-md">{symbol}</span>
                           <div className="flex items-center gap-2">
                             <span className={clsx('hud-label', getQualityColor(research.entry_quality))}>
                               {research.entry_quality.toUpperCase()}
                             </span>
-                            <span className={clsx('hud-value-sm font-bold', getVerdictColor(research.verdict))}>
+                            <span className={clsx('hud-value-md font-bold', getVerdictColor(research.verdict))}>
                               {research.verdict}
                             </span>
                           </div>
@@ -855,7 +855,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <span className="hud-label hidden md:inline">AUTONOMOUS TRADING SYSTEM</span>
-            <span className="hud-value-sm">PAPER MODE</span>
+            <span className="hud-value-md">PAPER MODE</span>
           </div>
         </footer>
       </div>

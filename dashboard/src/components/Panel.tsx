@@ -23,7 +23,7 @@ export function Panel({
           {title && <span className="hud-label">{title}</span>}
           {titleRight && (
             typeof titleRight === 'string' 
-              ? <span className="hud-value-sm">{titleRight}</span>
+              ? <span className="hud-value-md">{titleRight}</span>
               : titleRight
           )}
         </div>

@@ -67,7 +67,7 @@ export function StatusBar({
             />
           )}
           <span className="hud-label">{item.label}</span>
-          <span className="hud-value-sm">{item.value}</span>
+          <span className="hud-value-md">{item.value}</span>
         </div>
       ))}
     </div>

@@ -117,21 +117,21 @@ export function ArbitrageSection({
                     className="border-b border-hud-line/20 hover:bg-hud-line/10"
                   >
                     <td className="py-2 px-2">
-                      <span className="hud-value-sm text-hud-text-bright">{opp.market}</span>
+                      <span className="hud-value-md text-hud-text-bright">{opp.market}</span>
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <span className="hud-value-sm">${opp.yesPrice.toFixed(3)}</span>
+                      <span className="hud-value-md">${opp.yesPrice.toFixed(3)}</span>
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <span className="hud-value-sm">${opp.noPrice.toFixed(3)}</span>
+                      <span className="hud-value-md">${opp.noPrice.toFixed(3)}</span>
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <span className={clsx('hud-value-sm font-medium', getProfitColor(opp.profitPercent))}>
+                      <span className={clsx('hud-value-md font-medium', getProfitColor(opp.profitPercent))}>
                         {formatPercent(opp.profitPercent)}
                       </span>
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <span className="hud-value-sm text-hud-text-dim">
+                      <span className="hud-value-md text-hud-text-dim">
                         {formatCurrency(opp.volume)}
                       </span>
                     </td>
