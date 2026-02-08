@@ -194,13 +194,17 @@ function EventRow({ event, index }: { event: ActivityEvent; index: number }) {
       
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-hud-text-dim text-[10px] font-mono">
+        <div className="flex items-center gap-2">
+          <span className="text-hud-text-dim text-[10px] font-mono shrink-0">
             {formatTime(event.timestamp)}
           </span>
-          <span className="hud-value-sm text-hud-text-bright">
+          <span className="hud-value-sm text-hud-text-bright truncate">
             {event.title}
           </span>
+          {/* Importance indicator - inline with title */}
+          {event.importance === 'high' && (
+            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-hud-warning" />
+          )}
         </div>
         
         <div className="flex items-start justify-between gap-2 mt-0.5">
@@ -232,10 +236,6 @@ function EventRow({ event, index }: { event: ActivityEvent; index: number }) {
         </div>
       </div>
       
-      {/* Importance indicator */}
-      {event.importance === 'high' && (
-        <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-hud-warning mt-1.5" />
-      )}
     </motion.div>
   )
 }
