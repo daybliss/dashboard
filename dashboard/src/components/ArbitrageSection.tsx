@@ -1,8 +1,11 @@
 import { motion } from 'motion/react'
 import clsx from 'clsx'
+import { useState, useCallback } from 'react'
 import { Panel } from './Panel'
 import { MetricInline } from './Metric'
-import type { ArbitrageOpportunity } from '../hooks/useOpportunities'
+import type { ArbitrageOpportunity, PaperTrade } from '../hooks/useOpportunities'
+
+type ButtonState = 'idle' | 'loading' | 'success' | 'error'
 
 interface ArbitrageSectionProps {
   opportunities: ArbitrageOpportunity[]
@@ -10,6 +13,7 @@ interface ArbitrageSectionProps {
   error: string | null
   lastUpdated: Date | null
   onRefresh: () => void
+  onExecutePaperTrade?: (opp: ArbitrageOpportunity) => Promise<{ success: boolean; trade?: PaperTrade; error?: string }>
 }
 
 function formatPercent(value: number): string {
@@ -34,12 +38,109 @@ function getProfitColor(percent: number): string {
   return 'text-hud-error'
 }
 
+// Paper Trade Button Component
+interface PaperTradeButtonProps {
+  opportunity: ArbitrageOpportunity
+  onExecute: (opp: ArbitrageOpportunity) => Promise<{ success: boolean; trade?: PaperTrade; error?: string }>
+}
+
+function PaperTradeButton({ opportunity, onExecute }: PaperTradeButtonProps) {
+  const [state, setState] = useState<ButtonState>('idle')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const handleClick = useCallback(async () => {
+    if (state === 'loading' || state === 'success') return
+    
+    setState('loading')
+    setErrorMsg(null)
+    
+    try {
+      const result = await onExecute(opportunity)
+      if (result.success) {
+        setState('success')
+        // Reset to idle after 2 seconds
+        setTimeout(() => setState('idle'), 2000)
+      } else {
+        setState('error')
+        setErrorMsg(result.error || 'Failed')
+        // Reset to idle after 3 seconds
+        setTimeout(() => {
+          setState('idle')
+          setErrorMsg(null)
+        }, 3000)
+      }
+    } catch {
+      setState('error')
+      setErrorMsg('Error')
+      setTimeout(() => {
+        setState('idle')
+        setErrorMsg(null)
+      }, 3000)
+    }
+  }, [opportunity, onExecute, state])
+
+  const buttonContent = () => {
+    switch (state) {
+      case 'loading':
+        return (
+          <span className="flex items-center gap-1">
+            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-[9px]">...</span>
+          </span>
+        )
+      case 'success':
+        return (
+          <span className="flex items-center gap-1 text-hud-success">
+            <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            <span className="text-[9px]">DONE</span>
+          </span>
+        )
+      case 'error':
+        return (
+          <span className="text-hud-error text-[9px]">
+            {errorMsg || 'ERR'}
+          </span>
+        )
+      default:
+        return (
+          <span className="flex flex-col items-end">
+            <span className="text-[9px] text-hud-cyan">PAPER TRADE</span>
+            <span className="text-[8px] text-hud-text-dim">$5 → +${((1 - (opportunity.yesPrice + opportunity.noPrice)) * 5).toFixed(2)}</span>
+          </span>
+        )
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={state === 'loading' || state === 'success'}
+      className={clsx(
+        'px-2 py-1 border transition-all duration-200 text-right min-w-[80px]',
+        state === 'success' && 'border-hud-success/50 bg-hud-success/10',
+        state === 'error' && 'border-hud-error/50 bg-hud-error/10',
+        state === 'idle' && 'border-hud-cyan/30 hover:border-hud-cyan hover:bg-hud-cyan/10',
+        state === 'loading' && 'border-hud-cyan/30 opacity-70',
+        (state === 'loading' || state === 'success') && 'cursor-not-allowed'
+      )}
+    >
+      {buttonContent()}
+    </button>
+  )
+}
+
 export function ArbitrageSection({ 
   opportunities, 
   loading, 
   error, 
   lastUpdated, 
-  onRefresh 
+  onRefresh,
+  onExecutePaperTrade,
 }: ArbitrageSectionProps) {
   return (
     <Panel 
@@ -83,6 +184,9 @@ export function ArbitrageSection({
                 <th className="hud-label text-right py-2 px-2">NO Price</th>
                 <th className="hud-label text-right py-2 px-2">Profit %</th>
                 <th className="hud-label text-right py-2 px-2">Volume</th>
+                {onExecutePaperTrade && (
+                  <th className="hud-label text-right py-2 px-2">Action</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -105,6 +209,11 @@ export function ArbitrageSection({
                     <td className="py-3 px-2">
                       <div className="h-3 bg-hud-line/30 rounded w-20 ml-auto animate-pulse" />
                     </td>
+                    {onExecutePaperTrade && (
+                      <td className="py-3 px-2">
+                        <div className="h-6 bg-hud-line/30 rounded w-20 ml-auto animate-pulse" />
+                      </td>
+                    )}
                   </tr>
                 ))
               ) : (
@@ -135,6 +244,14 @@ export function ArbitrageSection({
                         {formatCurrency(opp.volume)}
                       </span>
                     </td>
+                    {onExecutePaperTrade && (
+                      <td className="py-2 px-2 text-right">
+                        <PaperTradeButton
+                          opportunity={opp}
+                          onExecute={onExecutePaperTrade}
+                        />
+                      </td>
+                    )}
                   </motion.tr>
                 ))
               )}

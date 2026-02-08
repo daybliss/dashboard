@@ -21,11 +21,43 @@ function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
 
 export interface ArbitrageOpportunity {
   market: string
+  marketId?: string
   yesPrice: number
   noPrice: number
   profitPercent: number
   volume: number
   timestamp: string
+}
+
+export interface PaperTrade {
+  id: string
+  marketId: string
+  marketName: string
+  strategy: 'arbitrage'
+  yesPrice: number
+  noPrice: number
+  profitPercent: number
+  investedAmount: number
+  potentialProfit: number
+  status: 'open' | 'closed' | 'settled'
+  openedAt: string
+  closedAt?: string
+  expectedReturn: number
+  simulatedPnl: number
+}
+
+export interface PaperTradePnlSummary {
+  totalTrades: number
+  openTrades: number
+  closedTrades: number
+  winTrades: number
+  lossTrades: number
+  winRate: number
+  totalInvested: number
+  realizedPnl: number
+  unrealizedPnl: number
+  totalPnl: number
+  roi: number
 }
 
 export interface IncomeOpportunity {
@@ -57,6 +89,11 @@ interface UseOpportunitiesReturn {
     income: Date | null
   }
   refetch: () => Promise<void>
+  executePaperTrade: (opp: ArbitrageOpportunity) => Promise<{ success: boolean; trade?: PaperTrade; error?: string }>
+  paperTrades: PaperTrade[]
+  paperPnl: PaperTradePnlSummary | null
+  loadingPaperTrades: boolean
+  refreshPaperTrades: () => Promise<void>
 }
 
 const INITIAL_DATA: OpportunitiesData = {
@@ -95,6 +132,9 @@ export function useOpportunities(): UseOpportunitiesReturn {
     arbitrage: null as Date | null,
     income: null as Date | null,
   })
+  const [paperTrades, setPaperTrades] = useState<PaperTrade[]>([])
+  const [paperPnl, setPaperPnl] = useState<PaperTradePnlSummary | null>(null)
+  const [loadingPaperTrades, setLoadingPaperTrades] = useState(false)
 
   // Use refs to track interval and prevent stale closures
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -180,10 +220,71 @@ export function useOpportunities(): UseOpportunitiesReturn {
     await Promise.all([fetchArbitrage(), fetchIncome()])
   }, [fetchArbitrage, fetchIncome])
 
+  // Fetch paper trades and P&L
+  const fetchPaperTrades = useCallback(async () => {
+    setLoadingPaperTrades(true)
+    try {
+      const res = await authFetch(`${API_BASE}/paper-trades`)
+      const result = await res.json()
+      if (result.ok && result.trades) {
+        setPaperTrades(result.trades)
+      }
+    } catch (err) {
+      console.error('Failed to fetch paper trades:', err)
+    }
+  }, [])
+
+  const fetchPaperPnl = useCallback(async () => {
+    try {
+      const res = await authFetch(`${API_BASE}/paper-trades/pnl`)
+      const result = await res.json()
+      if (result.ok && result.summary) {
+        setPaperPnl(result.summary)
+      }
+    } catch (err) {
+      console.error('Failed to fetch paper P&L:', err)
+    }
+  }, [])
+
+  const refreshPaperTrades = useCallback(async () => {
+    setLoadingPaperTrades(true)
+    try {
+      await Promise.all([fetchPaperTrades(), fetchPaperPnl()])
+    } finally {
+      setLoadingPaperTrades(false)
+    }
+  }, [fetchPaperTrades, fetchPaperPnl])
+
+  // Execute paper trade
+  const executePaperTrade = useCallback(async (opp: ArbitrageOpportunity): Promise<{ success: boolean; trade?: PaperTrade; error?: string }> => {
+    try {
+      const res = await authFetch(`${API_BASE}/paper-trades/execute`, {
+        method: 'POST',
+        body: JSON.stringify({
+          marketId: opp.marketId || opp.market,
+          marketName: opp.market,
+          yesPrice: opp.yesPrice,
+          noPrice: opp.noPrice,
+          profitPercent: opp.profitPercent,
+        }),
+      })
+      const result = await res.json()
+      if (result.ok && result.trade) {
+        // Refresh trades list after successful execution
+        await refreshPaperTrades()
+        return { success: true, trade: result.trade }
+      }
+      return { success: false, error: result.error || 'Unknown error' }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Connection failed' }
+    }
+  }, [refreshPaperTrades])
+
   // Initial fetch and auto-refresh every 5 minutes
   useEffect(() => {
     fetchArbitrage()
     fetchIncome()
+    refreshPaperTrades()
 
     // Set up auto-refresh interval (5 minutes)
     intervalRef.current = setInterval(() => {
@@ -196,7 +297,7 @@ export function useOpportunities(): UseOpportunitiesReturn {
         clearInterval(intervalRef.current)
       }
     }
-  }, [fetchArbitrage, fetchIncome])
+  }, [fetchArbitrage, fetchIncome, refreshPaperTrades])
 
   return {
     data,
@@ -204,5 +305,10 @@ export function useOpportunities(): UseOpportunitiesReturn {
     error,
     lastUpdated,
     refetch,
+    executePaperTrade,
+    paperTrades,
+    paperPnl,
+    loadingPaperTrades,
+    refreshPaperTrades,
   }
 }
