@@ -10,6 +10,7 @@ import { LineChart, Sparkline } from './components/LineChart'
 import { NotificationBell } from './components/NotificationBell'
 import { Tooltip, TooltipContent } from './components/Tooltip'
 import { OpportunitiesTab } from './components/OpportunitiesTab'
+import { ActivityTab } from './components/ActivityTab'
 import type { Status, Config, LogEntry, Signal, Position, SignalResearch, PortfolioSnapshot } from './types'
 
 type TabId = 'dashboard' | 'research' | 'opportunities' | 'activity'
@@ -404,6 +405,8 @@ export default function App() {
 
         {activeTab === 'opportunities' ? (
           <OpportunitiesTab />
+        ) : activeTab === 'activity' ? (
+          <ActivityTab />
         ) : (
           <div className="grid grid-cols-4 md:grid-cols-8 lg:grid-cols-12 gap-4">
           {/* Row 1: Account, Positions, LLM Costs */}
